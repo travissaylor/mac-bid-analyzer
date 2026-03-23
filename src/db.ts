@@ -131,11 +131,29 @@ CREATE INDEX IF NOT EXISTS idx_analyzed_items_deal_score ON analyzed_items(deal_
 CREATE INDEX IF NOT EXISTS idx_error_log_type_time ON error_log(error_type, occurred_at);
 `;
 
+function migrateSchema(db: Database): void {
+  const columns = db.prepare("PRAGMA table_info(analyzed_items)").all() as { name: string }[];
+  const columnNames = new Set(columns.map((c) => c.name));
+
+  const migrations: [string, string][] = [
+    ["llm_confidence", "ALTER TABLE analyzed_items ADD COLUMN llm_confidence REAL"],
+    ["llm_reasoning", "ALTER TABLE analyzed_items ADD COLUMN llm_reasoning TEXT"],
+    ["llm_comparables", "ALTER TABLE analyzed_items ADD COLUMN llm_comparables TEXT"],
+  ];
+
+  for (const [col, sql] of migrations) {
+    if (!columnNames.has(col)) {
+      db.exec(sql);
+    }
+  }
+}
+
 export function openDatabase(projectRoot?: string): Database {
   const root = projectRoot ?? process.cwd();
   const dbPath = join(root, "data.db");
   const db = new Database(dbPath);
   db.exec(SCHEMA_SQL);
+  migrateSchema(db);
   return db;
 }
 
