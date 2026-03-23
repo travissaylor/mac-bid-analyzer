@@ -241,7 +241,26 @@ export function getItemByLotId(db: Database, lotId: number): AnalyzedItem | null
 }
 
 export function getOpenItems(db: Database): AnalyzedItem[] {
-  const stmt = db.prepare("SELECT * FROM analyzed_items WHERE is_open = 1");
+  const stmt = db.prepare("SELECT * FROM analyzed_items WHERE is_open = 1 ORDER BY deal_score DESC");
+  return stmt.all() as AnalyzedItem[];
+}
+
+export function getAllItems(db: Database): AnalyzedItem[] {
+  const stmt = db.prepare("SELECT * FROM analyzed_items ORDER BY deal_score DESC");
+  return stmt.all() as AnalyzedItem[];
+}
+
+export function getDeals(db: Database): AnalyzedItem[] {
+  const stmt = db.prepare(
+    "SELECT * FROM analyzed_items WHERE deal_score IS NOT NULL AND deal_score > 0 ORDER BY deal_score DESC"
+  );
+  return stmt.all() as AnalyzedItem[];
+}
+
+export function getReviewItems(db: Database): AnalyzedItem[] {
+  const stmt = db.prepare(
+    "SELECT * FROM analyzed_items WHERE needs_manual_review = 1 ORDER BY deal_score DESC"
+  );
   return stmt.all() as AnalyzedItem[];
 }
 

@@ -1,4 +1,4 @@
-import { openDatabase, getOpenItems } from "./db";
+import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems } from "./db";
 import type { AnalyzedItem } from "./db";
 import { parseLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
@@ -196,18 +196,13 @@ async function runResults(flags: ParsedCommand["flags"]): Promise<void> {
       items = getOpenItems(db);
       log(`Showing open auctions...`);
     } else if (flags.deals) {
-      const allOpen = getOpenItems(db);
-      items = allOpen
-        .filter((i) => i.deal_score !== null && i.deal_score > 0)
-        .sort((a, b) => (b.deal_score ?? 0) - (a.deal_score ?? 0));
+      items = getDeals(db);
       log(`Showing deals (positive deal score, best first)...`);
     } else if (flags.review) {
-      const stmt = db.prepare("SELECT * FROM analyzed_items WHERE needs_manual_review = 1");
-      items = stmt.all() as AnalyzedItem[];
+      items = getReviewItems(db);
       log(`Showing items needing manual review...`);
     } else {
-      const stmt = db.prepare("SELECT * FROM analyzed_items ORDER BY analyzed_at DESC");
-      items = stmt.all() as AnalyzedItem[];
+      items = getAllItems(db);
       log(`Showing all results...`);
     }
 
