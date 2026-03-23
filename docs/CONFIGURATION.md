@@ -92,6 +92,26 @@ The `analyze` command accepts these formats:
 | Lot permalink | `https://mac.bid/lot/52217488` | lot_id=52217488 |
 | Bare lot ID | `52217488` | lot_id=52217488 |
 
+## Prerequisites
+
+- **Bun >= 1.0** — Install via `curl -fsSL https://bun.sh/install | bash`
+
+## Server Setup
+
+```bash
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+# Clone and install
+cd /path/to/mac-bid-analyzer
+bun install
+
+# Configure
+cp .env.example .env
+# Edit .env with your credentials
+# Edit config.json with your building IDs
+```
+
 ## Cron Setup
 
 ```bash

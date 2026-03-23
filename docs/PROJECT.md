@@ -88,8 +88,10 @@ mac-bid-analyzer/
 │   └── CONFIGURATION.md      # Config file and env var reference
 ├── config.json               # User preferences
 ├── .env                      # Credentials (gitignored)
+├── .env.example              # Template for required env vars
 ├── data.db                   # SQLite database (gitignored)
-├── package.json
+├── package.json              # Bun >= 1.0 required in engines
+├── bun.lockb                 # Bun lockfile (committed)
 ├── tsconfig.json
 └── .gitignore
 ```

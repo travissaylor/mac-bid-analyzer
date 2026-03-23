@@ -16,7 +16,112 @@ Mac.bid lists thousands of liquidation items daily at auction starting at $1, bu
 
 ## User Stories
 
-### US-001: Analyze a single item by URL or lot ID
+### US-001: Project setup with Bun
+
+**Description:** As a developer, I need the project initialized with Bun as its runtime so that all other work has a foundation to build on.
+
+**Acceptance Criteria:**
+
+- [ ] `package.json` specifies Bun as the runtime with `"bun": ">=1.0"` in engines
+- [ ] `bun.lockb` is committed for reproducible installs
+- [ ] `tsconfig.json` configured for Bun with strict mode
+- [ ] `.env.example` committed with all required variables and inline comments:
+  ```
+  # Mac.bid credentials (Firebase auth)
+  MACBID_EMAIL=
+  MACBID_PASSWORD=
+
+  # eBay Browse API (https://developer.ebay.com)
+  EBAY_APP_ID=
+  EBAY_APP_SECRET=
+
+  # Gemini API (https://ai.google.dev)
+  GEMINI_API_KEY=
+
+  # Ntfy push notifications (self-hosted)
+  NTFY_URL=http://localhost:2586/mac-bid-alerts
+  ```
+- [ ] `.gitignore` covers `.env`, `data.db`, `.firebase-token`, `node_modules`
+- [ ] `README.md` documents setup steps: install Bun, `bun install`, copy `.env.example` to `.env`, configure `config.json`, set up cron
+- [ ] Runs via `bun run src/cli.ts <subcommand>` — no build step needed
+- [ ] Typecheck passes
+
+### US-002: Configuration system
+
+**Description:** As a mac.bid buyer, I want to configure pricing parameters and location preferences in a file so that I can tweak the tool's behavior without changing code.
+
+**Acceptance Criteria:**
+
+- [ ] Reads `config.json` from project root
+- [ ] Loads `.env` for credentials using Bun's built-in env support
+- [ ] Config file supports all fields documented in docs/CONFIGURATION.md
+- [ ] CLI flags (`--force`, `--threshold`, `--dry-run`) override config file values
+- [ ] If `config.json` is missing, uses sensible defaults (30% threshold, $3 lot fee, 15% premium, 5 min comps, etc.)
+- [ ] Validates config on load and prints clear errors for invalid values
+- [ ] Typecheck passes
+
+### US-003: SQLite database setup and operations
+
+**Description:** As a developer, I need a reliable data layer so that analysis results persist and can be queried by the future TUI.
+
+**Acceptance Criteria:**
+
+- [ ] Database file created at `data.db` in project root on first run
+- [ ] Schema includes tables: `analyzed_items`, `error_log`, `circuit_breaker` (as defined in docs/SCHEMA.md)
+- [ ] Indexes created on `is_open`, `auction_id`, `category`, `condition`, `deal_score`
+- [ ] Provides functions for: insert/upsert analyzed item, query by lot ID, query open items, update live data, log errors, check/reset circuit breaker
+- [ ] Uses `bun:sqlite` (built-in Bun SQLite driver)
+- [ ] Typecheck passes
+
+### US-004: CLI entrypoint with subcommands
+
+**Description:** As a mac.bid buyer, I want a single CLI tool with clear subcommands so that I can run different operations easily.
+
+**Acceptance Criteria:**
+
+- [ ] Single entrypoint at `src/cli.ts` runnable via `bun run src/cli.ts <subcommand>`
+- [ ] `analyze <input>` subcommand — runs single-item analysis
+- [ ] `watchlist` subcommand — runs watchlist orchestration
+- [ ] `results` subcommand — queries and displays DB results with flags: `--open`, `--deals`, `--review`
+- [ ] `--help` flag shows usage for each subcommand
+- [ ] Invalid input or unknown subcommand prints helpful error message
+- [ ] All output includes timestamps for log compatibility
+- [ ] Exit code 0 on success, non-zero on failure
+- [ ] Typecheck passes
+
+### US-005: eBay Browse API integration
+
+**Description:** As a developer, I need to query eBay's Browse API for sold listings so that the tool can determine real secondary market prices.
+
+**Acceptance Criteria:**
+
+- [ ] Authenticates with eBay using client credentials OAuth flow (App ID + Secret from `.env`)
+- [ ] Caches the eBay OAuth token until expiry
+- [ ] Searches sold/completed listings by UPC using the Browse API `search` endpoint
+- [ ] When UPC is detected as an Amazon ASIN, searches by product name instead
+- [ ] Filters results by item condition matching the mac.bid condition where possible (open box, new, like new)
+- [ ] Returns median, low, high sold prices and total comp count
+- [ ] Returns the search query used (for debugging/display)
+- [ ] Handles eBay API errors gracefully (logs error, returns null result, does not crash)
+- [ ] Typecheck passes
+
+### US-006: Determine location cost tier automatically
+
+**Description:** As a developer, I need the tool to automatically derive which buildings are transfer-eligible from the user's home buildings so that location cost tiers stay accurate without manual config updates.
+
+**Acceptance Criteria:**
+
+- [ ] Reads `home_building_ids` from `config.json`
+- [ ] Fetches `GET /buildings` from mac.bid API
+- [ ] For each home building, parses its `transfer_destinations` field (comma-separated building IDs)
+- [ ] Collects all unique transfer-destination building IDs into the "transfer" tier
+- [ ] Items at home buildings get $0 extra cost
+- [ ] Items at transfer-eligible buildings get $10 extra cost (configurable)
+- [ ] Items at all other buildings get $25 extra cost (configurable)
+- [ ] Building data can be cached for the duration of a run (does not change frequently)
+- [ ] Typecheck passes
+
+### US-007: Analyze a single item by URL or lot ID
 
 **Description:** As a mac.bid buyer, I want to analyze a specific auction item so that I know its secondary market value and my recommended max bid before placing a bid.
 
@@ -37,80 +142,7 @@ Mac.bid lists thousands of liquidation items daily at auction starting at $1, bu
 - [ ] If item already exists in DB and `--force` not set, prints existing result and skips re-analysis
 - [ ] Typecheck passes with `bun check` or equivalent
 
-### US-002: Authenticate with mac.bid via Firebase
-
-**Description:** As a mac.bid buyer, I want the tool to authenticate with my mac.bid account so that it can access my watchlist.
-
-**Acceptance Criteria:**
-
-- [ ] Signs in via Firebase Auth REST API using email/password from `.env`
-- [ ] Caches the refresh token locally (e.g., `.firebase-token` file, gitignored)
-- [ ] On subsequent runs, uses the cached refresh token to obtain a new ID token without re-entering credentials
-- [ ] If refresh token is expired or invalid, falls back to full email/password sign-in
-- [ ] ID token is passed as `Authorization` header on authenticated API calls
-- [ ] Typecheck passes
-
-### US-003: Pull and analyze watchlist items
-
-**Description:** As a mac.bid buyer, I want to automatically analyze all items on my watchlist so that I don't have to manually run analysis on each one.
-
-**Acceptance Criteria:**
-
-- [ ] Authenticates with mac.bid and calls `GET /user/me` to retrieve `watchlist_full`
-- [ ] For each item not already in the database, runs the single-item analysis (same logic as US-001)
-- [ ] For items already analyzed, skips the eBay/LLM analysis
-- [ ] `--force` flag re-analyzes all items regardless of existing DB entries
-- [ ] `--dry-run` flag lists items that would be analyzed without running analysis
-- [ ] Prints summary table to stdout after completion (total items, analyzed, skipped, errors)
-- [ ] Typecheck passes
-
-### US-004: Update live auction data for open items
-
-**Description:** As a mac.bid buyer, I want the tool to refresh current bid and auction status for all open items so that my database always reflects recent auction state.
-
-**Acceptance Criteria:**
-
-- [ ] On each watchlist run, queries all items in DB where `is_open = 1`
-- [ ] For each open item, calls `GET /map-bid/ddb/lot/:lotId` to get current bid, total bids, is_open, watchers_count
-- [ ] Updates the corresponding fields in SQLite
-- [ ] Recalculates `deal_score` based on updated `current_bid` and `recommended_max_bid`
-- [ ] Updates `live_updated_at` timestamp
-- [ ] If an item is now closed (`is_open = false`), marks it as closed in the DB
-- [ ] Typecheck passes
-
-### US-005: Determine location cost tier automatically
-
-**Description:** As a developer, I need the tool to automatically derive which buildings are transfer-eligible from the user's home buildings so that location cost tiers stay accurate without manual config updates.
-
-**Acceptance Criteria:**
-
-- [ ] Reads `home_building_ids` from `config.json`
-- [ ] Fetches `GET /buildings` from mac.bid API
-- [ ] For each home building, parses its `transfer_destinations` field (comma-separated building IDs)
-- [ ] Collects all unique transfer-destination building IDs into the "transfer" tier
-- [ ] Items at home buildings get $0 extra cost
-- [ ] Items at transfer-eligible buildings get $10 extra cost (configurable)
-- [ ] Items at all other buildings get $25 extra cost (configurable)
-- [ ] Building data can be cached for the duration of a run (does not change frequently)
-- [ ] Typecheck passes
-
-### US-006: eBay Browse API integration
-
-**Description:** As a developer, I need to query eBay's Browse API for sold listings so that the tool can determine real secondary market prices.
-
-**Acceptance Criteria:**
-
-- [ ] Authenticates with eBay using client credentials OAuth flow (App ID + Secret from `.env`)
-- [ ] Caches the eBay OAuth token until expiry
-- [ ] Searches sold/completed listings by UPC using the Browse API `search` endpoint
-- [ ] When UPC is detected as an Amazon ASIN, searches by product name instead
-- [ ] Filters results by item condition matching the mac.bid condition where possible (open box, new, like new)
-- [ ] Returns median, low, high sold prices and total comp count
-- [ ] Returns the search query used (for debugging/display)
-- [ ] Handles eBay API errors gracefully (logs error, returns null result, does not crash)
-- [ ] Typecheck passes
-
-### US-007: Gemini LLM fallback for low-comp items
+### US-008: Gemini LLM fallback for low-comp items
 
 **Description:** As a mac.bid buyer, I want an estimated value even when eBay doesn't have enough sold data so that I have some reference point for uncommon items.
 
@@ -125,7 +157,48 @@ Mac.bid lists thousands of liquidation items daily at auction starting at $1, bu
 - [ ] Handles Gemini API errors gracefully (logs error, marks item as `analysis_source = "none"`)
 - [ ] Typecheck passes
 
-### US-008: Circuit breaker with Ntfy alerts
+### US-009: Authenticate with mac.bid via Firebase
+
+**Description:** As a mac.bid buyer, I want the tool to authenticate with my mac.bid account so that it can access my watchlist.
+
+**Acceptance Criteria:**
+
+- [ ] Signs in via Firebase Auth REST API using email/password from `.env`
+- [ ] Caches the refresh token locally (e.g., `.firebase-token` file, gitignored)
+- [ ] On subsequent runs, uses the cached refresh token to obtain a new ID token without re-entering credentials
+- [ ] If refresh token is expired or invalid, falls back to full email/password sign-in
+- [ ] ID token is passed as `Authorization` header on authenticated API calls
+- [ ] Typecheck passes
+
+### US-010: Pull and analyze watchlist items
+
+**Description:** As a mac.bid buyer, I want to automatically analyze all items on my watchlist so that I don't have to manually run analysis on each one.
+
+**Acceptance Criteria:**
+
+- [ ] Authenticates with mac.bid and calls `GET /user/me` to retrieve `watchlist_full`
+- [ ] For each item not already in the database, runs the single-item analysis (same logic as US-007)
+- [ ] For items already analyzed, skips the eBay/LLM analysis
+- [ ] `--force` flag re-analyzes all items regardless of existing DB entries
+- [ ] `--dry-run` flag lists items that would be analyzed without running analysis
+- [ ] Prints summary table to stdout after completion (total items, analyzed, skipped, errors)
+- [ ] Typecheck passes
+
+### US-011: Update live auction data for open items
+
+**Description:** As a mac.bid buyer, I want the tool to refresh current bid and auction status for all open items so that my database always reflects recent auction state.
+
+**Acceptance Criteria:**
+
+- [ ] On each watchlist run, queries all items in DB where `is_open = 1`
+- [ ] For each open item, calls `GET /map-bid/ddb/lot/:lotId` to get current bid, total bids, is_open, watchers_count
+- [ ] Updates the corresponding fields in SQLite
+- [ ] Recalculates `deal_score` based on updated `current_bid` and `recommended_max_bid`
+- [ ] Updates `live_updated_at` timestamp
+- [ ] If an item is now closed (`is_open = false`), marks it as closed in the DB
+- [ ] Typecheck passes
+
+### US-012: Circuit breaker with Ntfy alerts
 
 **Description:** As a mac.bid buyer, I want to be alerted when the tool is consistently failing so that I can investigate and fix the problem.
 
@@ -142,50 +215,7 @@ Mac.bid lists thousands of liquidation items daily at auction starting at $1, bu
 - [ ] When circuit breaker trips (5 consecutive failures), halts the current batch and exits with non-zero code
 - [ ] Typecheck passes
 
-### US-009: SQLite database setup and operations
-
-**Description:** As a developer, I need a reliable data layer so that analysis results persist and can be queried by the future TUI.
-
-**Acceptance Criteria:**
-
-- [ ] Database file created at `data.db` in project root on first run
-- [ ] Schema includes tables: `analyzed_items`, `error_log`, `circuit_breaker` (as defined in docs/SCHEMA.md)
-- [ ] Indexes created on `is_open`, `auction_id`, `category`, `condition`, `deal_score`
-- [ ] Provides functions for: insert/upsert analyzed item, query by lot ID, query open items, update live data, log errors, check/reset circuit breaker
-- [ ] Uses `bun:sqlite` (built-in Bun SQLite driver)
-- [ ] Typecheck passes
-
-### US-010: Configuration system
-
-**Description:** As a mac.bid buyer, I want to configure pricing parameters and location preferences in a file so that I can tweak the tool's behavior without changing code.
-
-**Acceptance Criteria:**
-
-- [ ] Reads `config.json` from project root
-- [ ] Loads `.env` for credentials using Bun's built-in env support
-- [ ] Config file supports all fields documented in docs/CONFIGURATION.md
-- [ ] CLI flags (`--force`, `--threshold`, `--dry-run`) override config file values
-- [ ] If `config.json` is missing, uses sensible defaults (30% threshold, $3 lot fee, 15% premium, 5 min comps, etc.)
-- [ ] Validates config on load and prints clear errors for invalid values
-- [ ] Typecheck passes
-
-### US-011: CLI entrypoint with subcommands
-
-**Description:** As a mac.bid buyer, I want a single CLI tool with clear subcommands so that I can run different operations easily.
-
-**Acceptance Criteria:**
-
-- [ ] Single entrypoint at `src/cli.ts` runnable via `bun run src/cli.ts <subcommand>`
-- [ ] `analyze <input>` subcommand — runs single-item analysis
-- [ ] `watchlist` subcommand — runs watchlist orchestration
-- [ ] `results` subcommand — queries and displays DB results with flags: `--open`, `--deals`, `--review`
-- [ ] `--help` flag shows usage for each subcommand
-- [ ] Invalid input or unknown subcommand prints helpful error message
-- [ ] All output includes timestamps for log compatibility
-- [ ] Exit code 0 on success, non-zero on failure
-- [ ] Typecheck passes
-
-### US-012: Query results from database
+### US-013: Query results from database
 
 **Description:** As a mac.bid buyer, I want to query my analysis results from the command line so that I can review deals before the TUI is built.
 
@@ -260,9 +290,10 @@ Mac.bid lists thousands of liquidation items daily at auction starting at $1, bu
 
 ## Technical Considerations
 
-- **Runtime:** Bun — provides built-in TypeScript execution (no compile step), built-in SQLite (`bun:sqlite`), fast startup for cron
-- **No build step:** Cron runs `bun run src/cli.ts watchlist` directly
-- **SQLite concurrency:** Only one process writes to the DB at a time (cron runs sequentially), so no WAL mode or locking concerns
+- **Runtime:** Bun (>=1.0) is a hard requirement — provides built-in TypeScript execution (no compile step), built-in SQLite (`bun:sqlite`), fast startup for cron. Install via `curl -fsSL https://bun.sh/install | bash`.
+- **No build step:** Bun executes TypeScript directly. Cron runs `bun run src/cli.ts watchlist`.
+- **Deployment:** Install Bun on the Linux server, clone the repo, `bun install`, configure `.env` and `config.json`, set up cron. No containers needed.
+- **SQLite concurrency:** Only one process writes to the DB at a time (cron runs sequentially), so no WAL mode or locking concerns.
 - **eBay Browse API:** Free tier allows 5,000 calls/day. Estimated usage is ~480/day worst case (48 cron runs × ~10 new items). Well within limits.
 - **Firebase Auth REST API:** Well-documented Google service. Stable. Refresh tokens are long-lived (months). Endpoint: `identitytoolkit.googleapis.com`
 - **Gemini free tier:** Sufficient for occasional fallback calls (items with <5 eBay comps)
