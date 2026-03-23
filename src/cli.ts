@@ -1,5 +1,8 @@
 import { openDatabase, getOpenItems } from "./db";
 import type { AnalyzedItem } from "./db";
+import { parseLotId, analyzeItem, printAnalysisSummary } from "./analyze";
+import { loadConfig } from "./config";
+import { clearBuildingsCache } from "./location";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -238,9 +241,22 @@ async function main(): Promise<void> {
   }
 
   if (parsed.subcommand === "analyze") {
-    log(`Analyzing item: ${parsed.input}`);
-    log("Error: analyze subcommand not yet implemented.");
-    process.exit(1);
+    try {
+      const lotId = parseLotId(parsed.input!);
+      const config = loadConfig(args);
+      clearBuildingsCache();
+
+      log(`Analyzing lot ${lotId}...`);
+      const result = await analyzeItem(lotId, config, {
+        force: parsed.flags.force,
+        dryRun: parsed.flags.dryRun,
+      });
+      printAnalysisSummary(result);
+      process.exit(0);
+    } catch (err) {
+      log(`Error: ${(err as Error).message}`);
+      process.exit(1);
+    }
   }
 
   if (parsed.subcommand === "watchlist") {
