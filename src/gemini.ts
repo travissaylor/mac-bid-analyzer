@@ -52,8 +52,6 @@ export async function getGeminiEstimate(
     contents: prompt,
     config: {
       temperature: 0.1,
-      maxOutputTokens: 256,
-      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 
