@@ -67,13 +67,14 @@ export function extractJson(text: string): string | null {
 
 export async function getGeminiEstimate(
   apiKey: string,
-  input: GeminiInput
+  input: GeminiInput,
+  model: string = "gemini-2.5-flash"
 ): Promise<GeminiEstimate> {
   const prompt = buildPrompt(input);
 
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model,
     contents: prompt,
     config: {
       temperature: 0.1,

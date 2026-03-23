@@ -31,6 +31,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     },
     manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
     circuit_breaker_threshold: 5,
+    gemini_model: "gemini-2.5-flash",
     env: {
       macbidEmail: "test@test.com",
       macbidPassword: "password123",

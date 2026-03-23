@@ -15,6 +15,7 @@ export interface ConfigFile {
   location_tiers: LocationTiers;
   manual_review_conditions: string[];
   circuit_breaker_threshold: number;
+  gemini_model: string;
 }
 
 export interface CliOverrides {
@@ -47,6 +48,7 @@ const DEFAULTS: ConfigFile = {
   },
   manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
   circuit_breaker_threshold: 5,
+  gemini_model: "gemini-2.5-flash",
 };
 
 function validateConfig(config: ConfigFile): string[] {
@@ -95,6 +97,10 @@ function validateConfig(config: ConfigFile): string[] {
     errors.push("circuit_breaker_threshold must be a positive integer");
   }
 
+  if (typeof config.gemini_model !== "string" || config.gemini_model.length === 0) {
+    errors.push("gemini_model must be a non-empty string");
+  }
+
   return errors;
 }
 
@@ -139,6 +145,7 @@ function loadConfigFile(configPath: string): ConfigFile {
       (parsed.manual_review_conditions as string[] | undefined) ?? DEFAULTS.manual_review_conditions,
     circuit_breaker_threshold:
       (parsed.circuit_breaker_threshold as number | undefined) ?? DEFAULTS.circuit_breaker_threshold,
+    gemini_model: (parsed.gemini_model as string | undefined) ?? DEFAULTS.gemini_model,
   };
 
   return merged;
