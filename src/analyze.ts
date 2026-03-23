@@ -277,6 +277,9 @@ export async function analyzeItem(
     let llmEstimateMid: number | null = null;
     let llmEstimateHigh: number | null = null;
     let llmProvider: string | null = null;
+    let llmConfidence: number | null = null;
+    let llmReasoning: string | null = null;
+    let llmComparables: string | null = null;
 
     if (needsManualReview) {
       // No auto-recommendation for manual review conditions
@@ -316,6 +319,9 @@ export async function analyzeItem(
           llmEstimateMid = geminiResult.mid;
           llmEstimateHigh = geminiResult.high;
           llmProvider = "gemini";
+          llmConfidence = geminiResult.confidence ?? null;
+          llmReasoning = geminiResult.reasoning ?? null;
+          llmComparables = geminiResult.comparables ? JSON.stringify(geminiResult.comparables) : null;
           analysisSource = "llm";
           manualReviewReason = `Only ${ebayCount} eBay comp(s) found. LLM estimate is advisory only.`;
           log(`Gemini estimate: $${geminiResult.low.toFixed(2)} / $${geminiResult.mid.toFixed(2)} / $${geminiResult.high.toFixed(2)}`);
@@ -364,6 +370,9 @@ export async function analyzeItem(
       llm_estimate_mid: llmEstimateMid,
       llm_estimate_high: llmEstimateHigh,
       llm_provider: llmProvider,
+      llm_confidence: llmConfidence,
+      llm_reasoning: llmReasoning,
+      llm_comparables: llmComparables,
       recommended_max_bid: recommendedMaxBid,
       sales_tax_rate: locationInfo.salesTaxRate,
       location_cost: locationInfo.extraCost,

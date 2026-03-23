@@ -30,6 +30,9 @@ export interface AnalyzedItem {
   llm_estimate_mid: number | null;
   llm_estimate_high: number | null;
   llm_provider: string | null;
+  llm_confidence: number | null;
+  llm_reasoning: string | null;
+  llm_comparables: string | null;
   recommended_max_bid: number | null;
   sales_tax_rate: number | null;
   location_cost: number;
@@ -88,6 +91,9 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
   llm_estimate_mid  REAL,
   llm_estimate_high REAL,
   llm_provider      TEXT,
+  llm_confidence    REAL,
+  llm_reasoning     TEXT,
+  llm_comparables   TEXT,
 
   recommended_max_bid REAL,
   sales_tax_rate    REAL,
@@ -142,6 +148,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       is_open, current_bid, total_bids, watchers_count, live_updated_at,
       ebay_sold_median, ebay_sold_low, ebay_sold_high, ebay_sold_count, ebay_search_query,
       llm_estimate_low, llm_estimate_mid, llm_estimate_high, llm_provider,
+      llm_confidence, llm_reasoning, llm_comparables,
       recommended_max_bid, sales_tax_rate, location_cost, location_tier,
       deal_score, needs_manual_review, manual_review_reason,
       analyzed_at, analysis_source
@@ -152,6 +159,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       $is_open, $current_bid, $total_bids, $watchers_count, $live_updated_at,
       $ebay_sold_median, $ebay_sold_low, $ebay_sold_high, $ebay_sold_count, $ebay_search_query,
       $llm_estimate_low, $llm_estimate_mid, $llm_estimate_high, $llm_provider,
+      $llm_confidence, $llm_reasoning, $llm_comparables,
       $recommended_max_bid, $sales_tax_rate, $location_cost, $location_tier,
       $deal_score, $needs_manual_review, $manual_review_reason,
       $analyzed_at, $analysis_source
@@ -183,6 +191,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       llm_estimate_mid = excluded.llm_estimate_mid,
       llm_estimate_high = excluded.llm_estimate_high,
       llm_provider = excluded.llm_provider,
+      llm_confidence = excluded.llm_confidence,
+      llm_reasoning = excluded.llm_reasoning,
+      llm_comparables = excluded.llm_comparables,
       recommended_max_bid = excluded.recommended_max_bid,
       sales_tax_rate = excluded.sales_tax_rate,
       location_cost = excluded.location_cost,
@@ -223,6 +234,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
     $llm_estimate_mid: item.llm_estimate_mid,
     $llm_estimate_high: item.llm_estimate_high,
     $llm_provider: item.llm_provider,
+    $llm_confidence: item.llm_confidence,
+    $llm_reasoning: item.llm_reasoning,
+    $llm_comparables: item.llm_comparables,
     $recommended_max_bid: item.recommended_max_bid,
     $sales_tax_rate: item.sales_tax_rate,
     $location_cost: item.location_cost,
