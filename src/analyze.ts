@@ -256,6 +256,7 @@ export async function analyzeItem(
         log(`Warning: Could not fetch buildings data: ${(err as Error).message}. Using remote tier defaults.`);
       }
     }
+    log(`Location: ${locationInfo.tier} (building ${lot.building_id}, cost=$${locationInfo.extraCost})`);
 
     // Check if condition requires manual review
     const conditionUpper = lot.condition.toUpperCase();

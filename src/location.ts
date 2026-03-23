@@ -45,6 +45,14 @@ export async function fetchBuildings(): Promise<MacBidBuilding[]> {
   return data as MacBidBuilding[];
 }
 
+function parseTransferDestinations(raw: string | null): number[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
+}
+
 export function deriveTransferBuildingIds(
   buildings: MacBidBuilding[],
   homeBuildingIds: number[]
@@ -53,17 +61,19 @@ export function deriveTransferBuildingIds(
   const transferIds = new Set<number>();
 
   for (const building of buildings) {
-    if (!homeSet.has(building.id)) continue;
-    if (!building.transfer_destinations) continue;
+    const destinations = parseTransferDestinations(building.transfer_destinations);
 
-    const destinations = building.transfer_destinations
-      .split(",")
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n));
-
-    for (const destId of destinations) {
-      if (!homeSet.has(destId)) {
-        transferIds.add(destId);
+    if (homeSet.has(building.id)) {
+      // Home building: its destinations are transfer-eligible
+      for (const destId of destinations) {
+        if (!homeSet.has(destId)) {
+          transferIds.add(destId);
+        }
+      }
+    } else {
+      // Non-home building: if it can transfer TO a home building, it's transfer-eligible
+      if (destinations.some((id) => homeSet.has(id))) {
+        transferIds.add(building.id);
       }
     }
   }

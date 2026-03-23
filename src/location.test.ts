@@ -59,13 +59,36 @@ describe("deriveTransferBuildingIds", () => {
     expect(result.has(6)).toBe(false);
   });
 
-  it("handles buildings with no transfer_destinations", () => {
+  it("handles home buildings with no transfer_destinations", () => {
+    // Building 10 has no transfer_destinations, but building 15 can transfer TO 10
     const result = deriveTransferBuildingIds(MOCK_BUILDINGS, [10]);
-    expect(result.size).toBe(0);
+    expect(result).toEqual(new Set([15]));
   });
 
   it("handles empty home_building_ids", () => {
     const result = deriveTransferBuildingIds(MOCK_BUILDINGS, []);
+    expect(result.size).toBe(0);
+  });
+
+  it("includes non-home buildings that can transfer TO a home building", () => {
+    // Building 2 (Cranberry) has transfer_destinations "1" — building 1 is home
+    // Even without building 1 listing building 2 as a destination, building 2 should be transfer-eligible
+    const buildings: MacBidBuilding[] = [
+      { id: 1, name: "Robinson", sales_tax: 0.06, transfer_destinations: null },
+      { id: 6, name: "Washington", sales_tax: 0.06, transfer_destinations: null },
+      { id: 21, name: "Butler", sales_tax: 0.06, transfer_destinations: "1,6" },
+    ];
+    const result = deriveTransferBuildingIds(buildings, [1, 6]);
+    expect(result).toEqual(new Set([21]));
+  });
+
+  it("does not include non-home buildings that only transfer to other non-home buildings", () => {
+    const buildings: MacBidBuilding[] = [
+      { id: 1, name: "Robinson", sales_tax: 0.06, transfer_destinations: null },
+      { id: 15, name: "Remote City", sales_tax: 0.05, transfer_destinations: "10" },
+      { id: 10, name: "Columbus", sales_tax: 0.0725, transfer_destinations: null },
+    ];
+    const result = deriveTransferBuildingIds(buildings, [1]);
     expect(result.size).toBe(0);
   });
 
