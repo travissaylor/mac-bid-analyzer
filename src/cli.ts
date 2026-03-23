@@ -1,6 +1,6 @@
 import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems } from "./db";
 import type { AnalyzedItem } from "./db";
-import { parseLotId, analyzeItem, printAnalysisSummary } from "./analyze";
+import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
 import { runWatchlist, printWatchlistSummary } from "./watchlist";
@@ -238,14 +238,16 @@ async function main(): Promise<void> {
 
   if (parsed.subcommand === "analyze") {
     try {
-      const lotId = parseLotId(parsed.input!);
+      const parsedLot = parseLotId(parsed.input!);
       const config = loadConfig(args);
       clearBuildingsCache();
 
-      log(`Analyzing lot ${lotId}...`);
-      const result = await analyzeItem(lotId, config, {
+      const resolved = await resolveLotId(parsedLot);
+      log(`Analyzing lot ${resolved.lotId}...`);
+      const result = await analyzeItem(resolved.lotId, config, {
         force: parsed.flags.force,
         dryRun: parsed.flags.dryRun,
+        ssrData: resolved.ssrData,
       });
       printAnalysisSummary(result);
       process.exit(0);

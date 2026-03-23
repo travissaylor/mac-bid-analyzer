@@ -1,6 +1,6 @@
 import type { AppConfig } from "./config";
 
-const MACBID_BUILDINGS_URL = "https://api.mac.bid/buildings";
+const MACBID_BUILDINGS_URL = "https://api.macdiscount.com/buildings";
 
 export interface MacBidBuilding {
   id: number;

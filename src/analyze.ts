@@ -17,35 +17,81 @@ function log(message: string): void {
 }
 
 /**
- * Parse a mac.bid URL or lot ID into a numeric lot ID.
+ * Parse a mac.bid URL or lot ID into a numeric internal lot ID.
  * Supported formats:
- *   https://mac.bid/auction/{auctionId}/lot/{lotId}
- *   https://www.mac.bid/auction/{auctionId}/lot/{lotId}
- *   https://mac.bid/lot/{lotId}
- *   /lot/{lotId}
- *   {lotId} (bare numeric)
+ *   https://mac.bid/auction/{auctionId}/lot/{lotNumber}
+ *   https://www.mac.bid/auction/{auctionId}/lot/{lotNumber}
+ *   {lotId} (bare numeric internal ID)
+ *
+ * For URLs with alphanumeric lot numbers (e.g. 2587T), fetches the page
+ * to resolve the internal lot ID from SSR data.
  */
-export function parseLotId(input: string): number {
+export function parseLotId(input: string): number | string {
   const trimmed = input.trim();
 
-  // Bare numeric lot ID
+  // Bare numeric internal lot ID
   if (/^\d+$/.test(trimmed)) {
     return parseInt(trimmed, 10);
   }
 
-  // /lot/{id} permalink
+  // Full URL: /auction/{auctionId}/lot/{lotNumber}
+  const auctionLot = trimmed.match(/\/auction\/([^/]+)\/lot\/([^/?\s]+)/);
+  if (auctionLot) {
+    const lotNumber = auctionLot[2];
+    // If purely numeric, use directly
+    if (/^\d+$/.test(lotNumber)) {
+      return parseInt(lotNumber, 10);
+    }
+    // Alphanumeric lot number — return the full URL path for resolution
+    return trimmed;
+  }
+
+  // /lot/{id} permalink (numeric only)
   const lotPermalink = trimmed.match(/\/lot\/(\d+)/);
   if (lotPermalink) {
     return parseInt(lotPermalink[1], 10);
   }
 
-  // Full URL: /auction/{id}/lot/{num}
-  const auctionLot = trimmed.match(/\/auction\/[^/]+\/lot\/(\d+)/);
-  if (auctionLot) {
-    return parseInt(auctionLot[1], 10);
+  throw new Error(`Cannot parse lot ID from input: ${input}`);
+}
+
+export interface ResolvedLot {
+  lotId: number;
+  /** Full lot data from SSR, available when resolved from a URL */
+  ssrData?: Record<string, unknown>;
+}
+
+/**
+ * Resolve a mac.bid URL to an internal numeric lot ID by fetching the
+ * SSR page and extracting the ID from __NEXT_DATA__.
+ * Returns both the ID and the full SSR lot data when available.
+ */
+export async function resolveLotId(input: string | number): Promise<ResolvedLot> {
+  if (typeof input === "number") {
+    return { lotId: input };
   }
 
-  throw new Error(`Cannot parse lot ID from input: ${input}`);
+  // It's a URL — fetch the page and extract from __NEXT_DATA__
+  const url = input.startsWith("http") ? input : `https://www.mac.bid${input.startsWith("/") ? "" : "/"}${input}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch lot page: ${response.status} ${response.statusText}`);
+  }
+
+  const html = await response.text();
+  const match = html.match(/id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+  if (!match) {
+    throw new Error("Could not find __NEXT_DATA__ in lot page");
+  }
+
+  const data = JSON.parse(match[1]);
+  const currentLot = data?.props?.pageProps?.currentLot;
+  const lotId = currentLot?.id;
+  if (typeof lotId !== "number") {
+    throw new Error("Could not extract lot ID from page data");
+  }
+
+  return { lotId, ssrData: currentLot };
 }
 
 export function isAsin(upc: string): boolean {
@@ -73,9 +119,42 @@ export interface MacBidLotItem {
   watchers_count: number;
 }
 
-const MACBID_LOT_URL = "https://api.mac.bid/map-bid/ddb/lot";
+const MACBID_LOT_URL = "https://api.macdiscount.com/map-bid/ddb/lot";
 
-export async function fetchLotItem(lotId: number): Promise<MacBidLotItem> {
+function parseLotData(data: Record<string, unknown>, lotId: number): MacBidLotItem {
+  // building_id may be nested inside auction object (SSR data)
+  const auction = data.auction as Record<string, unknown> | undefined;
+  const buildingId = (data.building_id ?? auction?.building_id ?? null) as number | null;
+  const locationName = (data.location ?? data.auction_location ?? auction?.location_name ?? null) as string | null;
+
+  return {
+    id: (data.id ?? data.lot_id ?? lotId) as number,
+    auction_id: (data.auction_id ?? 0) as number,
+    lot_number: String(data.lot_number ?? ""),
+    product_name: (data.product_name ?? data.title ?? "") as string,
+    upc: (data.upc ?? null) as string | null,
+    condition: (data.condition ?? data.condition_name ?? "UNKNOWN") as string,
+    retail_price: (data.retail_price ?? null) as number | null,
+    category: (data.category ?? data.category_name ?? null) as string | null,
+    description: (data.description ?? null) as string | null,
+    image_url: (data.image_url ?? data.stock_image_url ?? null) as string | null,
+    building_id: buildingId,
+    current_location_id: (data.current_location_id ?? data.location_id ?? null) as number | null,
+    location: locationName,
+    expected_close_date: (data.expected_close_date ?? data.end_time ?? null) as string | null,
+    is_open: data.is_open !== undefined ? Boolean(data.is_open) : true,
+    current_bid: Number(data.current_bid ?? 0),
+    total_bids: Number(data.total_bids ?? 0),
+    watchers_count: Number(data.watchers_count ?? 0),
+  };
+}
+
+export async function fetchLotItem(lotId: number, ssrData?: Record<string, unknown>): Promise<MacBidLotItem> {
+  // Use SSR data if available (richer than DDB endpoint)
+  if (ssrData) {
+    return parseLotData(ssrData, lotId);
+  }
+
   const url = `${MACBID_LOT_URL}/${lotId}`;
   const response = await fetch(url);
 
@@ -89,26 +168,7 @@ export async function fetchLotItem(lotId: number): Promise<MacBidLotItem> {
     throw new Error(`Invalid lot response for lot ${lotId}`);
   }
 
-  return {
-    id: data.id ?? data.lot_id ?? lotId,
-    auction_id: data.auction_id ?? 0,
-    lot_number: String(data.lot_number ?? ""),
-    product_name: data.product_name ?? data.name ?? "",
-    upc: data.upc ?? null,
-    condition: data.condition ?? "UNKNOWN",
-    retail_price: data.retail_price ?? null,
-    category: data.category ?? null,
-    description: data.description ?? null,
-    image_url: data.image_url ?? data.image ?? null,
-    building_id: data.building_id ?? null,
-    current_location_id: data.current_location_id ?? null,
-    location: data.location ?? data.auction_location ?? null,
-    expected_close_date: data.expected_close_date ?? null,
-    is_open: data.is_open !== undefined ? Boolean(data.is_open) : true,
-    current_bid: data.current_bid ?? 0,
-    total_bids: data.total_bids ?? 0,
-    watchers_count: data.watchers_count ?? 0,
-  };
+  return parseLotData(data as Record<string, unknown>, lotId);
 }
 
 export function calculateMaxBid(
@@ -137,7 +197,7 @@ export interface AnalyzeResult {
 export async function analyzeItem(
   lotId: number,
   config: AppConfig,
-  options: { force?: boolean; dryRun?: boolean } = {}
+  options: { force?: boolean; dryRun?: boolean; ssrData?: Record<string, unknown> } = {}
 ): Promise<AnalyzeResult> {
   const db = openDatabase();
 
@@ -153,7 +213,24 @@ export async function analyzeItem(
 
     // Fetch lot data from mac.bid
     log(`Fetching lot ${lotId} from mac.bid...`);
-    const lot = await fetchLotItem(lotId);
+    const lot = await fetchLotItem(lotId, options.ssrData);
+
+    // SSR data doesn't include live bid data — fetch from DDB endpoint
+    if (options.ssrData && lot.current_bid === 0) {
+      try {
+        const liveUrl = `${MACBID_LOT_URL}/${lotId}`;
+        const liveResponse = await fetch(liveUrl);
+        if (liveResponse.ok) {
+          const liveData = await liveResponse.json();
+          lot.current_bid = Number(liveData.current_bid ?? 0);
+          lot.total_bids = Number(liveData.total_bids ?? lot.total_bids);
+          lot.watchers_count = Number(liveData.watchers_count ?? lot.watchers_count);
+          lot.is_open = liveData.is_open !== undefined ? Boolean(liveData.is_open) : lot.is_open;
+        }
+      } catch {
+        log("Warning: Could not fetch live bid data.");
+      }
+    }
 
     // Get location info
     let locationInfo: LocationInfo = { tier: "remote", extraCost: config.location_tiers.remote.extra_cost, salesTaxRate: 0 };

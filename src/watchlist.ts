@@ -19,7 +19,7 @@ function log(message: string): void {
   console.log(`${timestamp()} ${message}`);
 }
 
-const MACBID_USER_URL = "https://api.mac.bid/map-bid/user/me";
+const MACBID_USER_URL = "https://api.macdiscount.com/map-bid/user/me";
 
 export interface WatchlistItem {
   id: number;

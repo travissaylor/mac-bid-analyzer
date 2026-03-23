@@ -78,6 +78,12 @@ describe("analyze", () => {
       expect(parseLotId("https://mac.bid/lot/44444")).toBe(44444);
     });
 
+    it("should return URL string for alphanumeric lot numbers", () => {
+      const result = parseLotId("https://www.mac.bid/auction/UNL2603-23-A1/lot/2587T");
+      expect(typeof result).toBe("string");
+      expect(result).toContain("mac.bid");
+    });
+
     it("should throw for invalid input", () => {
       expect(() => parseLotId("not-a-url")).toThrow("Cannot parse lot ID");
     });

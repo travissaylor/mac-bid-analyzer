@@ -9,7 +9,7 @@ function log(message: string): void {
   console.log(`${timestamp()} ${message}`);
 }
 
-const MACBID_LOT_URL = "https://api.mac.bid/map-bid/ddb/lot";
+const MACBID_LOT_URL = "https://api.macdiscount.com/map-bid/ddb/lot";
 
 export interface LiveLotResponse {
   current_bid: number;
@@ -33,9 +33,9 @@ export async function fetchLotLiveData(lotId: number): Promise<LiveLotResponse> 
   }
 
   return {
-    current_bid: data.current_bid ?? 0,
-    total_bids: data.total_bids ?? 0,
-    watchers_count: data.watchers_count ?? 0,
+    current_bid: Number(data.current_bid ?? 0),
+    total_bids: Number(data.total_bids ?? 0),
+    watchers_count: Number(data.watchers_count ?? 0),
     is_open: data.is_open !== undefined ? Boolean(data.is_open) : true,
   };
 }

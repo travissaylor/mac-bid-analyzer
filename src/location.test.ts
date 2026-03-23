@@ -156,7 +156,7 @@ describe("fetchBuildings", () => {
 
     const result = await fetchBuildings();
     expect(result).toEqual(MOCK_BUILDINGS);
-    expect(fetchSpy).toHaveBeenCalledWith("https://api.mac.bid/buildings");
+    expect(fetchSpy).toHaveBeenCalledWith("https://api.macdiscount.com/buildings");
   });
 
   it("throws on non-OK response", async () => {

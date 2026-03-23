@@ -85,7 +85,7 @@ describe("loadConfig", () => {
     const dir = makeTempDir();
     const config = loadConfig([], dir);
     // ntfyUrl defaults when env var not set
-    expect(config.env.ntfyUrl).toBe("http://localhost:2586/mac-bid-alerts");
+    expect(config.env.ntfyUrl).toBe("http://192.168.68.53:2586/mac-bid-alerts");
     rmSync(dir, { recursive: true });
   });
 });
