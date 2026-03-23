@@ -3,7 +3,7 @@ import { getGeminiEstimate } from "./gemini";
 
 const originalFetch = globalThis.fetch;
 
-function mockFetch(handler: (url: string, init?: RequestInit) => Promise<Response>) {
+function mockFetch(handler: (url: string | URL | Request, init?: RequestInit) => Promise<Response>) {
   globalThis.fetch = handler as typeof fetch;
 }
 
@@ -28,8 +28,8 @@ describe("gemini", () => {
   describe("getGeminiEstimate", () => {
     it("should parse a valid Gemini response", async () => {
       mockFetch(async (url) => {
-        expect(url).toContain("generativelanguage.googleapis.com");
-        expect(url).toContain("key=test-key");
+        expect(String(url)).toContain("generativelanguage.googleapis.com");
+        expect(String(url)).toContain("gemini-2.5-flash");
         return new Response(JSON.stringify({
           candidates: [{
             content: {
@@ -64,10 +64,12 @@ describe("gemini", () => {
 
     it("should throw on API error", async () => {
       mockFetch(async () => {
-        return new Response("Unauthorized", { status: 401 });
+        return new Response(JSON.stringify({
+          error: { message: "Unauthorized", code: 401 },
+        }), { status: 401 });
       });
 
-      expect(getGeminiEstimate("bad-key", sampleInput)).rejects.toThrow("Gemini API error (401)");
+      expect(getGeminiEstimate("bad-key", sampleInput)).rejects.toThrow();
     });
 
     it("should throw when response has no text", async () => {
@@ -77,7 +79,7 @@ describe("gemini", () => {
         }));
       });
 
-      expect(getGeminiEstimate("test-key", sampleInput)).rejects.toThrow("no text content");
+      expect(getGeminiEstimate("test-key", sampleInput)).rejects.toThrow();
     });
 
     it("should throw when response is not valid JSON", async () => {

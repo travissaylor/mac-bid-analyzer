@@ -1,4 +1,4 @@
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface GeminiEstimate {
   low: number;
@@ -46,25 +46,17 @@ export async function getGeminiEstimate(
 ): Promise<GeminiEstimate> {
   const prompt = buildPrompt(input);
 
-  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 256,
-      },
-    }),
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 256,
+    },
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${text}`);
-  }
-
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
 
   if (!text || typeof text !== "string") {
     throw new Error("Gemini returned no text content");
