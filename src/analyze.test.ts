@@ -228,6 +228,8 @@ describe("analyze", () => {
       buildings?: unknown[];
       ebayToken?: boolean;
       ebayItems?: unknown[];
+      geminiResponse?: Record<string, unknown>;
+      geminiError?: boolean;
     } = {}) {
       const lotData = options.lotData ?? {
         id: 12345,
@@ -276,6 +278,19 @@ describe("analyze", () => {
             total: ebayItems.length,
             itemSummaries: ebayItems,
           }));
+        }
+        if (url.includes("generativelanguage.googleapis.com")) {
+          if (options.geminiError) {
+            return new Response("Service unavailable", { status: 503 });
+          }
+          const geminiResponse = options.geminiResponse ?? {
+            candidates: [{
+              content: {
+                parts: [{ text: '{"low": 35.00, "mid": 50.00, "high": 65.00}' }],
+              },
+            }],
+          };
+          return new Response(JSON.stringify(geminiResponse));
         }
         return new Response("Unknown", { status: 404 });
       });
@@ -335,7 +350,74 @@ describe("analyze", () => {
       }
     });
 
-    it("should flag insufficient comps for manual review", async () => {
+    it("should use Gemini fallback when insufficient comps and API key set", async () => {
+      setupMocks({
+        ebayItems: [
+          { price: { value: "50.00" } },
+          { price: { value: "55.00" } },
+        ],
+      });
+      const config = makeConfig({
+        env: {
+          macbidEmail: "",
+          macbidPassword: "",
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          ntfyUrl: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        expect(result.item.needs_manual_review).toBe(1);
+        expect(result.item.recommended_max_bid).toBeNull();
+        expect(result.item.analysis_source).toBe("llm");
+        expect(result.item.llm_provider).toBe("gemini");
+        expect(result.item.llm_estimate_low).toBe(35.00);
+        expect(result.item.llm_estimate_mid).toBe(50.00);
+        expect(result.item.llm_estimate_high).toBe(65.00);
+        expect(result.item.manual_review_reason).toContain("advisory only");
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("should set analysis_source to none when Gemini fails", async () => {
+      setupMocks({
+        ebayItems: [
+          { price: { value: "50.00" } },
+        ],
+        geminiError: true,
+      });
+      const config = makeConfig({
+        env: {
+          macbidEmail: "",
+          macbidPassword: "",
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          ntfyUrl: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        expect(result.item.needs_manual_review).toBe(1);
+        expect(result.item.recommended_max_bid).toBeNull();
+        expect(result.item.analysis_source).toBe("none");
+        expect(result.item.llm_provider).toBeNull();
+        expect(result.item.manual_review_reason).toContain("Gemini fallback failed");
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("should set analysis_source to none when no Gemini API key", async () => {
       setupMocks({
         ebayItems: [
           { price: { value: "50.00" } },
@@ -350,8 +432,8 @@ describe("analyze", () => {
         const result = await analyzeItem(12345, config);
         expect(result.item.needs_manual_review).toBe(1);
         expect(result.item.recommended_max_bid).toBeNull();
-        expect(result.item.analysis_source).toBe("insufficient_comps");
-        expect(result.item.manual_review_reason).toContain("2 eBay comp(s)");
+        expect(result.item.analysis_source).toBe("none");
+        expect(result.item.manual_review_reason).toContain("No Gemini API key");
       } finally {
         process.cwd = origCwd;
       }

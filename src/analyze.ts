@@ -3,8 +3,10 @@ import type { AnalyzedItem } from "./db";
 import { openDatabase, getItemByLotId, upsertAnalyzedItem } from "./db";
 import { searchEbay } from "./ebay";
 import { loadBuildings, getLocationInfo } from "./location";
+import { getGeminiEstimate } from "./gemini";
 import type { LocationInfo } from "./location";
 import type { EbayPriceResult } from "./ebay";
+import type { GeminiEstimate } from "./gemini";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -194,6 +196,10 @@ export async function analyzeItem(
     // Calculate max bid
     let recommendedMaxBid: number | null = null;
     let analysisSource = "ebay";
+    let llmEstimateLow: number | null = null;
+    let llmEstimateMid: number | null = null;
+    let llmEstimateHigh: number | null = null;
+    let llmProvider: string | null = null;
 
     if (needsManualReview) {
       // No auto-recommendation for manual review conditions
@@ -215,10 +221,37 @@ export async function analyzeItem(
         log(`Max bid is $${recommendedMaxBid.toFixed(2)} — not worth it at this location.`);
       }
     } else {
-      // Not enough comps — would fall back to Gemini (US-008)
-      analysisSource = "insufficient_comps";
-      manualReviewReason = `Only ${ebayCount} eBay comp(s) found (minimum: ${config.min_ebay_comps}). Gemini fallback not yet implemented.`;
-      log(`Only ${ebayCount} eBay comp(s) found. Gemini fallback not yet implemented — flagging for manual review.`);
+      // Not enough comps — fall back to Gemini LLM estimate
+      log(`Only ${ebayCount} eBay comp(s) found. Attempting Gemini fallback...`);
+
+      if (config.env.geminiApiKey) {
+        try {
+          const geminiResult: GeminiEstimate = await getGeminiEstimate(config.env.geminiApiKey, {
+            productName: lot.product_name,
+            upc: lot.upc,
+            condition: lot.condition,
+            retailPrice: lot.retail_price,
+            category: lot.category,
+            description: lot.description,
+          });
+
+          llmEstimateLow = geminiResult.low;
+          llmEstimateMid = geminiResult.mid;
+          llmEstimateHigh = geminiResult.high;
+          llmProvider = "gemini";
+          analysisSource = "llm";
+          manualReviewReason = `Only ${ebayCount} eBay comp(s) found. LLM estimate is advisory only.`;
+          log(`Gemini estimate: $${geminiResult.low.toFixed(2)} / $${geminiResult.mid.toFixed(2)} / $${geminiResult.high.toFixed(2)}`);
+        } catch (err) {
+          analysisSource = "none";
+          manualReviewReason = `Only ${ebayCount} eBay comp(s) found. Gemini fallback failed: ${(err as Error).message}`;
+          log(`Gemini fallback failed: ${(err as Error).message}`);
+        }
+      } else {
+        analysisSource = "none";
+        manualReviewReason = `Only ${ebayCount} eBay comp(s) found. No Gemini API key configured.`;
+        log(`No Gemini API key configured — skipping LLM fallback.`);
+      }
     }
 
     const dealScore = recommendedMaxBid !== null && recommendedMaxBid > 0
@@ -250,10 +283,10 @@ export async function analyzeItem(
       ebay_sold_high: ebayResult?.high ?? null,
       ebay_sold_count: ebayCount,
       ebay_search_query: ebayResult?.searchQuery ?? null,
-      llm_estimate_low: null,
-      llm_estimate_mid: null,
-      llm_estimate_high: null,
-      llm_provider: null,
+      llm_estimate_low: llmEstimateLow,
+      llm_estimate_mid: llmEstimateMid,
+      llm_estimate_high: llmEstimateHigh,
+      llm_provider: llmProvider,
       recommended_max_bid: recommendedMaxBid,
       sales_tax_rate: locationInfo.salesTaxRate,
       location_cost: locationInfo.extraCost,
@@ -296,6 +329,10 @@ export function printAnalysisSummary(result: AnalyzeResult): void {
     console.log(`  eBay Median: $${(item.ebay_sold_median ?? 0).toFixed(2)} (${item.ebay_sold_count} comps)`);
   } else {
     console.log(`  eBay Comps:  None found`);
+  }
+
+  if (item.llm_provider && item.llm_estimate_mid !== null) {
+    console.log(`  LLM Est:     $${item.llm_estimate_low?.toFixed(2)} / $${item.llm_estimate_mid.toFixed(2)} / $${item.llm_estimate_high?.toFixed(2)} (${item.llm_provider}, advisory)`);
   }
 
   if (item.recommended_max_bid !== null) {
