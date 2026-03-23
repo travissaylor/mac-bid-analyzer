@@ -3,6 +3,7 @@ import type { AnalyzedItem } from "./db";
 import { parseLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
+import { runWatchlist, printWatchlistSummary } from "./watchlist";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -260,9 +261,21 @@ async function main(): Promise<void> {
   }
 
   if (parsed.subcommand === "watchlist") {
-    log("Running watchlist analysis...");
-    log("Error: watchlist subcommand not yet implemented.");
-    process.exit(1);
+    try {
+      const config = loadConfig(args);
+      clearBuildingsCache();
+
+      log("Running watchlist analysis...");
+      const summary = await runWatchlist(config, {
+        force: parsed.flags.force,
+        dryRun: parsed.flags.dryRun,
+      });
+      printWatchlistSummary(summary);
+      process.exit(summary.errors > 0 ? 1 : 0);
+    } catch (err) {
+      log(`Error: ${(err as Error).message}`);
+      process.exit(1);
+    }
   }
 
   if (parsed.subcommand === "results") {
