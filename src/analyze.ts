@@ -252,7 +252,7 @@ export async function analyzeItem(
       manualReviewReason = `Condition "${lot.condition}" requires manual review`;
     }
 
-    // Search eBay for comps
+    // Run eBay search and Gemini estimate independently
     log(`Searching eBay for comps...`);
     let ebayResult: EbayPriceResult | null = null;
     try {
@@ -270,9 +270,7 @@ export async function analyzeItem(
     const ebayCount = ebayResult?.count ?? 0;
     const ebayMedian = ebayResult?.median ?? 0;
 
-    // Calculate max bid
-    let recommendedMaxBid: number | null = null;
-    let analysisSource = "ebay";
+    // Always run Gemini estimate when API key is available
     let llmEstimateLow: number | null = null;
     let llmEstimateMid: number | null = null;
     let llmEstimateHigh: number | null = null;
@@ -281,12 +279,42 @@ export async function analyzeItem(
     let llmReasoning: string | null = null;
     let llmComparables: string | null = null;
 
+    if (config.env.geminiApiKey) {
+      log(`Running Gemini estimate...`);
+      try {
+        const geminiResult: GeminiEstimate = await getGeminiEstimate(config.env.geminiApiKey, {
+          productName: lot.product_name,
+          upc: lot.upc,
+          condition: lot.condition,
+          retailPrice: lot.retail_price,
+          category: lot.category,
+          description: lot.description,
+        }, config.gemini_model);
+
+        llmEstimateLow = geminiResult.low;
+        llmEstimateMid = geminiResult.mid;
+        llmEstimateHigh = geminiResult.high;
+        llmProvider = "gemini";
+        llmConfidence = geminiResult.confidence ?? null;
+        llmReasoning = geminiResult.reasoning ?? null;
+        llmComparables = geminiResult.comparables ? JSON.stringify(geminiResult.comparables) : null;
+        log(`Gemini estimate: $${geminiResult.low.toFixed(2)} / $${geminiResult.mid.toFixed(2)} / $${geminiResult.high.toFixed(2)}`);
+      } catch (err) {
+        log(`Gemini estimate failed: ${(err as Error).message}`);
+      }
+    }
+
+    // Calculate max bid
+    let recommendedMaxBid: number | null = null;
+    let analysisSource = "none";
+
     if (needsManualReview) {
       // No auto-recommendation for manual review conditions
       analysisSource = "manual_review";
       log(`Item condition "${lot.condition}" flagged for manual review — no auto-recommendation.`);
     } else if (ebayCount >= config.min_ebay_comps) {
-      // Enough comps — calculate max bid
+      // Enough comps — calculate max bid from eBay
+      analysisSource = "ebay";
       recommendedMaxBid = calculateMaxBid(
         ebayMedian,
         config.discount_threshold,
@@ -300,41 +328,15 @@ export async function analyzeItem(
         manualReviewReason = "Max bid calculates to zero or negative — not worth it";
         log(`Max bid is $${recommendedMaxBid.toFixed(2)} — not worth it at this location.`);
       }
+    } else if (llmProvider !== null) {
+      // Not enough comps but AI estimate available
+      analysisSource = "llm";
+      log(`Only ${ebayCount} eBay comp(s) found. AI estimate available.`);
     } else {
-      // Not enough comps — fall back to Gemini LLM estimate
-      log(`Only ${ebayCount} eBay comp(s) found. Attempting Gemini fallback...`);
-
-      if (config.env.geminiApiKey) {
-        try {
-          const geminiResult: GeminiEstimate = await getGeminiEstimate(config.env.geminiApiKey, {
-            productName: lot.product_name,
-            upc: lot.upc,
-            condition: lot.condition,
-            retailPrice: lot.retail_price,
-            category: lot.category,
-            description: lot.description,
-          }, config.gemini_model);
-
-          llmEstimateLow = geminiResult.low;
-          llmEstimateMid = geminiResult.mid;
-          llmEstimateHigh = geminiResult.high;
-          llmProvider = "gemini";
-          llmConfidence = geminiResult.confidence ?? null;
-          llmReasoning = geminiResult.reasoning ?? null;
-          llmComparables = geminiResult.comparables ? JSON.stringify(geminiResult.comparables) : null;
-          analysisSource = "llm";
-          manualReviewReason = `Only ${ebayCount} eBay comp(s) found. LLM estimate is advisory only.`;
-          log(`Gemini estimate: $${geminiResult.low.toFixed(2)} / $${geminiResult.mid.toFixed(2)} / $${geminiResult.high.toFixed(2)}`);
-        } catch (err) {
-          analysisSource = "none";
-          manualReviewReason = `Only ${ebayCount} eBay comp(s) found. Gemini fallback failed: ${(err as Error).message}`;
-          log(`Gemini fallback failed: ${(err as Error).message}`);
-        }
-      } else {
-        analysisSource = "none";
-        manualReviewReason = `Only ${ebayCount} eBay comp(s) found. No Gemini API key configured.`;
-        log(`No Gemini API key configured — skipping LLM fallback.`);
-      }
+      // No sufficient data from either source
+      analysisSource = "none";
+      manualReviewReason = `Only ${ebayCount} eBay comp(s) found and no AI estimate available.`;
+      log(`Only ${ebayCount} eBay comp(s) found and no AI estimate available.`);
     }
 
     const dealScore = recommendedMaxBid !== null && recommendedMaxBid > 0

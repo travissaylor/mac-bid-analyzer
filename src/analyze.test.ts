@@ -322,6 +322,38 @@ describe("analyze", () => {
         expect(result.item.location_cost).toBe(0);
         expect(result.item.needs_manual_review).toBe(0);
         expect(result.item.analysis_source).toBe("ebay");
+        // No Gemini key → no LLM data
+        expect(result.item.llm_provider).toBeNull();
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("should always run Gemini when API key is set, even with sufficient comps", async () => {
+      setupMocks();
+      const config = makeConfig({
+        env: {
+          macbidEmail: "",
+          macbidPassword: "",
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          ntfyUrl: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        expect(result.skipped).toBe(false);
+        // eBay is still the analysis source for max bid
+        expect(result.item.analysis_source).toBe("ebay");
+        expect(result.item.recommended_max_bid).not.toBeNull();
+        expect(result.item.recommended_max_bid!).toBeGreaterThan(0);
+        // But Gemini also ran and stored results
+        expect(result.item.llm_provider).toBe("gemini");
+        expect(result.item.llm_estimate_mid).toBe(50.00);
       } finally {
         process.cwd = origCwd;
       }
@@ -357,7 +389,7 @@ describe("analyze", () => {
       }
     });
 
-    it("should use Gemini fallback when insufficient comps and API key set", async () => {
+    it("should use AI estimate source when insufficient comps and API key set", async () => {
       setupMocks({
         ebayItems: [
           { price: { value: "50.00" } },
@@ -379,20 +411,21 @@ describe("analyze", () => {
 
       try {
         const result = await analyzeItem(12345, config);
-        expect(result.item.needs_manual_review).toBe(1);
+        // No longer flagged for manual review just because AI was used
+        expect(result.item.needs_manual_review).toBe(0);
         expect(result.item.recommended_max_bid).toBeNull();
         expect(result.item.analysis_source).toBe("llm");
         expect(result.item.llm_provider).toBe("gemini");
         expect(result.item.llm_estimate_low).toBe(35.00);
         expect(result.item.llm_estimate_mid).toBe(50.00);
         expect(result.item.llm_estimate_high).toBe(65.00);
-        expect(result.item.manual_review_reason).toContain("advisory only");
+        expect(result.item.manual_review_reason).toBeNull();
       } finally {
         process.cwd = origCwd;
       }
     });
 
-    it("should set analysis_source to none when Gemini fails", async () => {
+    it("should set analysis_source to none when Gemini fails and insufficient comps", async () => {
       setupMocks({
         ebayItems: [
           { price: { value: "50.00" } },
@@ -418,13 +451,13 @@ describe("analyze", () => {
         expect(result.item.recommended_max_bid).toBeNull();
         expect(result.item.analysis_source).toBe("none");
         expect(result.item.llm_provider).toBeNull();
-        expect(result.item.manual_review_reason).toContain("Gemini fallback failed");
+        expect(result.item.manual_review_reason).toContain("no AI estimate");
       } finally {
         process.cwd = origCwd;
       }
     });
 
-    it("should set analysis_source to none when no Gemini API key", async () => {
+    it("should set analysis_source to none when no Gemini API key and insufficient comps", async () => {
       setupMocks({
         ebayItems: [
           { price: { value: "50.00" } },
@@ -440,7 +473,7 @@ describe("analyze", () => {
         expect(result.item.needs_manual_review).toBe(1);
         expect(result.item.recommended_max_bid).toBeNull();
         expect(result.item.analysis_source).toBe("none");
-        expect(result.item.manual_review_reason).toContain("No Gemini API key");
+        expect(result.item.manual_review_reason).toContain("no AI estimate");
       } finally {
         process.cwd = origCwd;
       }
