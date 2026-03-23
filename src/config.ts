@@ -48,7 +48,7 @@ const DEFAULTS: ConfigFile = {
   },
   manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
   circuit_breaker_threshold: 5,
-  gemini_model: "gemini-2.5-flash",
+  gemini_model: "gemini-3.1-flash-lite-preview",
 };
 
 function validateConfig(config: ConfigFile): string[] {
