@@ -1,4 +1,4 @@
-import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems } from "./db";
+import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems, getItemByLotId } from "./db";
 import type { AnalyzedItem } from "./db";
 import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
@@ -22,6 +22,7 @@ function printUsage(): void {
   console.log("  analyze <url|lotId>  Analyze a single mac.bid item");
   console.log("  watchlist            Analyze all items on your mac.bid watchlist");
   console.log("  results              Query and display stored analysis results");
+  console.log("  detail <lotId>       Show full AI analysis for a specific item");
   console.log("");
   console.log("Global options:");
   console.log("  --help               Show help for a subcommand");
@@ -59,6 +60,14 @@ function printWatchlistHelp(): void {
   console.log("  --dry-run            Run without writing to the database");
 }
 
+function printDetailHelp(): void {
+  console.log(`${timestamp()} Usage: bun run src/cli.ts detail <lotId>`);
+  console.log("");
+  console.log("Show full AI analysis for a previously analyzed item.");
+  console.log("Displays AI estimates, confidence, reasoning, comparable products,");
+  console.log("and eBay data side-by-side.");
+}
+
 function printResultsHelp(): void {
   console.log(`${timestamp()} Usage: bun run src/cli.ts results [options]`);
   console.log("");
@@ -71,7 +80,7 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "watchlist" | "results" | "help";
+  subcommand: "analyze" | "watchlist" | "results" | "detail" | "help";
   input?: string;
   flags: {
     help: boolean;
@@ -135,14 +144,18 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "watchlist" && subcommand !== "results") {
+  if (subcommand !== "analyze" && subcommand !== "watchlist" && subcommand !== "results" && subcommand !== "detail") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
   }
 
-  const input = subcommand === "analyze" ? positional[1] : undefined;
+  const input = (subcommand === "analyze" || subcommand === "detail") ? positional[1] : undefined;
 
   if (subcommand === "analyze" && !flags.help && !input) {
     throw new Error("analyze requires an input (URL or lot ID). Run with --help for usage.");
+  }
+
+  if (subcommand === "detail" && !flags.help && !input) {
+    throw new Error("detail requires a lot ID. Run with --help for usage.");
   }
 
   return { subcommand, input, flags };
@@ -185,6 +198,96 @@ function formatResultsTable(items: AnalyzedItem[]): void {
   }
 
   log(`${items.length} result(s) displayed.`);
+}
+
+export function printItemDetail(item: AnalyzedItem): void {
+  console.log(`--- Detail: Lot ${item.lot_id} ---`);
+  console.log(`  Product:     ${item.product_name}`);
+  console.log(`  Condition:   ${item.condition}`);
+  console.log(`  Current Bid: $${item.current_bid.toFixed(2)}`);
+  console.log(`  Status:      ${item.is_open ? "OPEN" : "CLOSED"}`);
+  console.log(`  Location:    ${item.auction_location ?? "Unknown"} (${item.location_tier ?? "unknown"} tier, +$${item.location_cost.toFixed(2)})`);
+  console.log(`  Analyzed:    ${item.analyzed_at}`);
+  console.log(`  Source:      ${item.analysis_source}`);
+  console.log("");
+
+  // eBay section
+  console.log("  --- eBay Data ---");
+  if (item.ebay_sold_count > 0) {
+    console.log(`  Median:      $${(item.ebay_sold_median ?? 0).toFixed(2)}`);
+    console.log(`  Low:         $${(item.ebay_sold_low ?? 0).toFixed(2)}`);
+    console.log(`  High:        $${(item.ebay_sold_high ?? 0).toFixed(2)}`);
+    console.log(`  Comps:       ${item.ebay_sold_count}`);
+    if (item.ebay_search_query) {
+      console.log(`  Search:      ${item.ebay_search_query}`);
+    }
+  } else {
+    console.log("  No eBay comps found.");
+  }
+  console.log("");
+
+  // AI section
+  console.log("  --- AI Analysis ---");
+  if (item.llm_provider && item.llm_estimate_mid !== null) {
+    console.log(`  Provider:    ${item.llm_provider}`);
+    console.log(`  Low:         $${(item.llm_estimate_low ?? 0).toFixed(2)}`);
+    console.log(`  Mid:         $${item.llm_estimate_mid.toFixed(2)}`);
+    console.log(`  High:        $${(item.llm_estimate_high ?? 0).toFixed(2)}`);
+    if (item.llm_confidence !== null) {
+      console.log(`  Confidence:  ${item.llm_confidence}/100`);
+    }
+    if (item.llm_reasoning) {
+      console.log(`  Reasoning:   ${item.llm_reasoning}`);
+    }
+    if (item.llm_comparables) {
+      try {
+        const comparables = JSON.parse(item.llm_comparables) as Array<{ name: string; estimatedPrice: number }>;
+        if (comparables.length > 0) {
+          console.log("  Comparables:");
+          for (const comp of comparables) {
+            console.log(`    - ${comp.name}: $${comp.estimatedPrice.toFixed(2)}`);
+          }
+        }
+      } catch {
+        // ignore malformed comparables JSON
+      }
+    }
+  } else {
+    console.log("  No AI analysis available for this item.");
+  }
+  console.log("");
+
+  // Final recommendation
+  console.log("  --- Recommendation ---");
+  if (item.recommended_max_bid !== null) {
+    console.log(`  Max Bid:     $${item.recommended_max_bid.toFixed(2)}`);
+  } else {
+    console.log(`  Max Bid:     N/A`);
+  }
+  if (item.deal_score !== null) {
+    console.log(`  Deal Score:  ${item.deal_score.toFixed(0)}%`);
+  }
+  if (item.needs_manual_review) {
+    console.log(`  Review:      ${item.manual_review_reason}`);
+  }
+}
+
+async function runDetail(lotIdStr: string): Promise<void> {
+  const lotId = Number(lotIdStr);
+  if (isNaN(lotId) || lotId <= 0) {
+    throw new Error(`Invalid lot ID: ${lotIdStr}`);
+  }
+
+  const db = openDatabase();
+  try {
+    const item = getItemByLotId(db, lotId);
+    if (!item) {
+      throw new Error(`No analysis found for lot ${lotId}. Run 'analyze ${lotId}' first.`);
+    }
+    printItemDetail(item);
+  } finally {
+    db.close();
+  }
 }
 
 async function runResults(flags: ParsedCommand["flags"]): Promise<void> {
@@ -230,6 +333,8 @@ async function main(): Promise<void> {
       printWatchlistHelp();
     } else if (parsed.subcommand === "results") {
       printResultsHelp();
+    } else if (parsed.subcommand === "detail") {
+      printDetailHelp();
     } else {
       printUsage();
     }
@@ -269,6 +374,16 @@ async function main(): Promise<void> {
       });
       printWatchlistSummary(summary);
       process.exit(summary.errors > 0 || summary.circuitBreakerTripped ? 1 : 0);
+    } catch (err) {
+      log(`Error: ${(err as Error).message}`);
+      process.exit(1);
+    }
+  }
+
+  if (parsed.subcommand === "detail") {
+    try {
+      await runDetail(parsed.input!);
+      process.exit(0);
     } catch (err) {
       log(`Error: ${(err as Error).message}`);
       process.exit(1);
