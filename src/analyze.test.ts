@@ -4,6 +4,7 @@ import {
   isAsin,
   calculateMaxBid,
   calculateDealScore,
+  blendEstimates,
   analyzeItem,
   printAnalysisSummary,
   fetchLotItem,
@@ -144,6 +145,36 @@ describe("analyze", () => {
     it("should handle zero eBay median", () => {
       const result = calculateMaxBid(0, 0.3, 3.0, 0.15, 0.06, 0);
       expect(result).toBeLessThan(0);
+    });
+  });
+
+  describe("blendEstimates", () => {
+    it("should blend equally when AI confidence is 100 and eBay comps meet minimum", () => {
+      // aiWeight = 100/100 = 1.0, ebayWeight = min(5/5, 1.0) = 1.0
+      // blended = (50*1.0 + 60*1.0) / 2.0 = 55
+      expect(blendEstimates(50, 100, 60, 5, 5)).toBeCloseTo(55, 2);
+    });
+
+    it("should weight eBay more when AI confidence is low", () => {
+      // aiWeight = 30/100 = 0.3, ebayWeight = 1.0
+      // blended = (50*0.3 + 60*1.0) / 1.3 = 75/1.3 = 57.69
+      expect(blendEstimates(50, 30, 60, 5, 5)).toBeCloseTo(57.69, 1);
+    });
+
+    it("should weight AI more when eBay comps are below minimum", () => {
+      // aiWeight = 80/100 = 0.8, ebayWeight = min(2/5, 1.0) = 0.4
+      // blended = (50*0.8 + 60*0.4) / 1.2 = 64/1.2 = 53.33
+      expect(blendEstimates(50, 80, 60, 2, 5)).toBeCloseTo(53.33, 1);
+    });
+
+    it("should cap eBay weight at 1.0 when comps exceed minimum", () => {
+      // aiWeight = 0.5, ebayWeight = min(10/5, 1.0) = 1.0
+      // blended = (50*0.5 + 60*1.0) / 1.5 = 85/1.5 = 56.67
+      expect(blendEstimates(50, 50, 60, 10, 5)).toBeCloseTo(56.67, 1);
+    });
+
+    it("should return 0 when both weights are zero", () => {
+      expect(blendEstimates(50, 0, 60, 0, 5)).toBe(0);
     });
   });
 
@@ -329,7 +360,44 @@ describe("analyze", () => {
       }
     });
 
-    it("should always run Gemini when API key is set, even with sufficient comps", async () => {
+    it("should use blended source when both eBay comps and AI are available", async () => {
+      setupMocks({
+        geminiResponse: {
+          candidates: [{
+            content: {
+              parts: [{ text: '{"low": 35.00, "mid": 50.00, "high": 65.00, "confidence": 80, "reasoning": "Good product", "comparables": []}' }],
+            },
+          }],
+        },
+      });
+      const config = makeConfig({
+        env: {
+          macbidEmail: "",
+          macbidPassword: "",
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          ntfyUrl: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        expect(result.skipped).toBe(false);
+        expect(result.item.analysis_source).toBe("blended");
+        expect(result.item.recommended_max_bid).not.toBeNull();
+        expect(result.item.recommended_max_bid!).toBeGreaterThan(0);
+        expect(result.item.llm_provider).toBe("gemini");
+        expect(result.item.llm_estimate_mid).toBe(50.00);
+        expect(result.item.llm_confidence).toBe(80);
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("should fall back to ebay source when AI has no confidence score", async () => {
       setupMocks();
       const config = makeConfig({
         env: {
@@ -347,13 +415,10 @@ describe("analyze", () => {
       try {
         const result = await analyzeItem(12345, config);
         expect(result.skipped).toBe(false);
-        // eBay is still the analysis source for max bid
+        // No confidence in default mock response → falls back to ebay only
         expect(result.item.analysis_source).toBe("ebay");
         expect(result.item.recommended_max_bid).not.toBeNull();
-        expect(result.item.recommended_max_bid!).toBeGreaterThan(0);
-        // But Gemini also ran and stored results
         expect(result.item.llm_provider).toBe("gemini");
-        expect(result.item.llm_estimate_mid).toBe(50.00);
       } finally {
         process.cwd = origCwd;
       }
@@ -389,7 +454,7 @@ describe("analyze", () => {
       }
     });
 
-    it("should use AI estimate source when insufficient comps and API key set", async () => {
+    it("should use AI estimate directly when insufficient comps and API key set", async () => {
       setupMocks({
         ebayItems: [
           { price: { value: "50.00" } },
@@ -411,10 +476,11 @@ describe("analyze", () => {
 
       try {
         const result = await analyzeItem(12345, config);
-        // No longer flagged for manual review just because AI was used
         expect(result.item.needs_manual_review).toBe(0);
-        expect(result.item.recommended_max_bid).toBeNull();
-        expect(result.item.analysis_source).toBe("llm");
+        // AI estimate is now used directly for max bid
+        expect(result.item.recommended_max_bid).not.toBeNull();
+        expect(result.item.recommended_max_bid!).toBeGreaterThan(0);
+        expect(result.item.analysis_source).toBe("ai");
         expect(result.item.llm_provider).toBe("gemini");
         expect(result.item.llm_estimate_low).toBe(35.00);
         expect(result.item.llm_estimate_mid).toBe(50.00);

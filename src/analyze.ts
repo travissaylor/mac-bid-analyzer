@@ -184,6 +184,20 @@ export function calculateMaxBid(
   return Math.round(maxBid * 100) / 100;
 }
 
+export function blendEstimates(
+  aiMid: number,
+  aiConfidence: number,
+  ebayMedian: number,
+  ebayCompCount: number,
+  minEbayComps: number
+): number {
+  const aiWeight = aiConfidence / 100;
+  const ebayWeight = Math.min(ebayCompCount / minEbayComps, 1.0);
+  const totalWeight = aiWeight + ebayWeight;
+  if (totalWeight === 0) return 0;
+  return (aiMid * aiWeight + ebayMedian * ebayWeight) / totalWeight;
+}
+
 export function calculateDealScore(recommendedMaxBid: number, currentBid: number): number {
   if (recommendedMaxBid <= 0) return 0;
   return ((recommendedMaxBid - currentBid) / recommendedMaxBid) * 100;
@@ -308,12 +322,32 @@ export async function analyzeItem(
     let recommendedMaxBid: number | null = null;
     let analysisSource = "none";
 
+    const hasEbay = ebayCount >= config.min_ebay_comps;
+    const hasAi = llmProvider !== null && llmEstimateMid !== null;
+
     if (needsManualReview) {
       // No auto-recommendation for manual review conditions
       analysisSource = "manual_review";
       log(`Item condition "${lot.condition}" flagged for manual review — no auto-recommendation.`);
-    } else if (ebayCount >= config.min_ebay_comps) {
-      // Enough comps — calculate max bid from eBay
+    } else if (hasEbay && hasAi && llmConfidence !== null) {
+      // Both sources available — use weighted blend
+      analysisSource = "blended";
+      const blended = blendEstimates(llmEstimateMid!, llmConfidence, ebayMedian, ebayCount, config.min_ebay_comps);
+      recommendedMaxBid = calculateMaxBid(
+        blended,
+        config.discount_threshold,
+        config.lot_fee,
+        config.buyers_premium_rate,
+        locationInfo.salesTaxRate,
+        locationInfo.extraCost
+      );
+
+      if (recommendedMaxBid <= 0) {
+        manualReviewReason = "Max bid calculates to zero or negative — not worth it";
+        log(`Max bid is $${recommendedMaxBid.toFixed(2)} — not worth it at this location.`);
+      }
+    } else if (hasEbay) {
+      // Enough comps but no AI — calculate max bid from eBay only
       analysisSource = "ebay";
       recommendedMaxBid = calculateMaxBid(
         ebayMedian,
@@ -328,10 +362,23 @@ export async function analyzeItem(
         manualReviewReason = "Max bid calculates to zero or negative — not worth it";
         log(`Max bid is $${recommendedMaxBid.toFixed(2)} — not worth it at this location.`);
       }
-    } else if (llmProvider !== null) {
-      // Not enough comps but AI estimate available
-      analysisSource = "llm";
-      log(`Only ${ebayCount} eBay comp(s) found. AI estimate available.`);
+    } else if (hasAi) {
+      // Not enough comps but AI estimate available — use AI directly
+      analysisSource = "ai";
+      recommendedMaxBid = calculateMaxBid(
+        llmEstimateMid!,
+        config.discount_threshold,
+        config.lot_fee,
+        config.buyers_premium_rate,
+        locationInfo.salesTaxRate,
+        locationInfo.extraCost
+      );
+      log(`Only ${ebayCount} eBay comp(s) found. Using AI estimate for max bid.`);
+
+      if (recommendedMaxBid <= 0) {
+        manualReviewReason = "Max bid calculates to zero or negative — not worth it";
+        log(`Max bid is $${recommendedMaxBid.toFixed(2)} — not worth it at this location.`);
+      }
     } else {
       // No sufficient data from either source
       analysisSource = "none";
