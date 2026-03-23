@@ -3,6 +3,7 @@ import { analyzeItem } from "./analyze";
 import { getFirebaseIdToken } from "./firebase-auth";
 import { openDatabase, getItemByLotId } from "./db";
 import { clearBuildingsCache } from "./location";
+import { updateOpenItems } from "./live-update";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -24,6 +25,9 @@ export interface WatchlistSummary {
   analyzed: number;
   skipped: number;
   errors: number;
+  liveUpdated: number;
+  liveClosed: number;
+  liveErrors: number;
 }
 
 export async function fetchWatchlist(idToken: string): Promise<WatchlistItem[]> {
@@ -72,7 +76,7 @@ export async function runWatchlist(
   log(`Found ${watchlistItems.length} item(s) on watchlist.`);
 
   if (watchlistItems.length === 0) {
-    return { total: 0, analyzed: 0, skipped: 0, errors: 0 };
+    return { total: 0, analyzed: 0, skipped: 0, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0 };
   }
 
   // Determine which items need analysis
@@ -107,7 +111,7 @@ export async function runWatchlist(
       log(`  Lot ${item.id}${item.product_name ? ` — ${item.product_name}` : ""}`);
     }
     log(`Would skip ${skippedCount} already-analyzed item(s).`);
-    return { total: watchlistItems.length, analyzed: 0, skipped: skippedCount, errors: 0 };
+    return { total: watchlistItems.length, analyzed: 0, skipped: skippedCount, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0 };
   }
 
   // Clear buildings cache once per run
@@ -128,20 +132,30 @@ export async function runWatchlist(
     }
   }
 
+  // Update live data for all open items
+  log("Updating live auction data for open items...");
+  const liveUpdateSummary = await updateOpenItems();
+
   return {
     total: watchlistItems.length,
     analyzed: analyzedCount,
     skipped: skippedCount,
     errors: errorCount,
+    liveUpdated: liveUpdateSummary.updated,
+    liveClosed: liveUpdateSummary.closed,
+    liveErrors: liveUpdateSummary.errors,
   };
 }
 
 export function printWatchlistSummary(summary: WatchlistSummary): void {
   console.log("");
   console.log("=== Watchlist Summary ===");
-  console.log(`  Total items:  ${summary.total}`);
-  console.log(`  Analyzed:     ${summary.analyzed}`);
-  console.log(`  Skipped:      ${summary.skipped}`);
-  console.log(`  Errors:       ${summary.errors}`);
+  console.log(`  Total items:    ${summary.total}`);
+  console.log(`  Analyzed:       ${summary.analyzed}`);
+  console.log(`  Skipped:        ${summary.skipped}`);
+  console.log(`  Errors:         ${summary.errors}`);
+  console.log(`  Live updated:   ${summary.liveUpdated}`);
+  console.log(`  Newly closed:   ${summary.liveClosed}`);
+  console.log(`  Live errors:    ${summary.liveErrors}`);
   console.log("=========================");
 }

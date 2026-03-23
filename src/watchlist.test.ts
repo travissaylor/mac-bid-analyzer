@@ -369,7 +369,7 @@ describe("watchlist", () => {
   describe("printWatchlistSummary", () => {
     it("should print summary without throwing", () => {
       // Just verify it doesn't throw
-      printWatchlistSummary({ total: 10, analyzed: 7, skipped: 2, errors: 1 });
+      printWatchlistSummary({ total: 10, analyzed: 7, skipped: 2, errors: 1, liveUpdated: 5, liveClosed: 1, liveErrors: 0 });
     });
   });
 });
