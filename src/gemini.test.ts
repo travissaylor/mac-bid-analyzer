@@ -11,6 +11,21 @@ function restoreFetch() {
   globalThis.fetch = originalFetch;
 }
 
+function geminiResponse(text: string) {
+  return new Response(JSON.stringify({
+    candidates: [{
+      content: {
+        parts: [{ text }],
+        role: "model",
+      },
+      finishReason: "STOP",
+    }],
+    usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 },
+  }), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 const sampleInput = {
   productName: "Ninja Blender NJ600",
   upc: "012345678901",
@@ -30,13 +45,7 @@ describe("gemini", () => {
       mockFetch(async (url) => {
         expect(String(url)).toContain("generativelanguage.googleapis.com");
         expect(String(url)).toContain("gemini-2.5-flash");
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: '{"low": 35.00, "mid": 50.00, "high": 65.00}' }],
-            },
-          }],
-        }));
+        return geminiResponse('{"low": 35.00, "mid": 50.00, "high": 65.00}');
       });
 
       const result = await getGeminiEstimate("test-key", sampleInput);
@@ -47,13 +56,7 @@ describe("gemini", () => {
 
     it("should handle response wrapped in markdown code fences", async () => {
       mockFetch(async () => {
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: '```json\n{"low": 20, "mid": 30, "high": 40}\n```' }],
-            },
-          }],
-        }));
+        return geminiResponse('```json\n{"low": 20, "mid": 30, "high": 40}\n```');
       });
 
       const result = await getGeminiEstimate("test-key", sampleInput);
@@ -66,7 +69,7 @@ describe("gemini", () => {
       mockFetch(async () => {
         return new Response(JSON.stringify({
           error: { message: "Unauthorized", code: 401 },
-        }), { status: 401 });
+        }), { status: 401, headers: { "Content-Type": "application/json" } });
       });
 
       expect(getGeminiEstimate("bad-key", sampleInput)).rejects.toThrow();
@@ -75,8 +78,12 @@ describe("gemini", () => {
     it("should throw when response has no text", async () => {
       mockFetch(async () => {
         return new Response(JSON.stringify({
-          candidates: [{ content: { parts: [] } }],
-        }));
+          candidates: [{
+            content: { parts: [], role: "model" },
+            finishReason: "STOP",
+          }],
+          usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 0, totalTokenCount: 10 },
+        }), { headers: { "Content-Type": "application/json" } });
       });
 
       expect(getGeminiEstimate("test-key", sampleInput)).rejects.toThrow();
@@ -84,13 +91,7 @@ describe("gemini", () => {
 
     it("should throw when response is not valid JSON", async () => {
       mockFetch(async () => {
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: "I cannot provide pricing estimates." }],
-            },
-          }],
-        }));
+        return geminiResponse("I cannot provide pricing estimates.");
       });
 
       expect(getGeminiEstimate("test-key", sampleInput)).rejects.toThrow("Could not parse JSON");
@@ -98,13 +99,7 @@ describe("gemini", () => {
 
     it("should throw when JSON is missing required fields", async () => {
       mockFetch(async () => {
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: '{"low": 10, "mid": "not a number", "high": 30}' }],
-            },
-          }],
-        }));
+        return geminiResponse('{"low": 10, "mid": "not a number", "high": 30}');
       });
 
       expect(getGeminiEstimate("test-key", sampleInput)).rejects.toThrow("Invalid Gemini estimate format");
@@ -114,13 +109,7 @@ describe("gemini", () => {
       let capturedBody: string | undefined;
       mockFetch(async (_url, init) => {
         capturedBody = init?.body as string;
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: '{"low": 35, "mid": 50, "high": 65}' }],
-            },
-          }],
-        }));
+        return geminiResponse('{"low": 35, "mid": 50, "high": 65}');
       });
 
       await getGeminiEstimate("test-key", sampleInput);
@@ -135,13 +124,7 @@ describe("gemini", () => {
 
     it("should handle null optional fields in input", async () => {
       mockFetch(async () => {
-        return new Response(JSON.stringify({
-          candidates: [{
-            content: {
-              parts: [{ text: '{"low": 10, "mid": 20, "high": 30}' }],
-            },
-          }],
-        }));
+        return geminiResponse('{"low": 10, "mid": 20, "high": 30}');
       });
 
       const result = await getGeminiEstimate("test-key", {

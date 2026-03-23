@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface GeminiEstimate {
   low: number;
@@ -46,17 +46,18 @@ export async function getGeminiEstimate(
 ): Promise<GeminiEstimate> {
   const prompt = buildPrompt(input);
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
-    generationConfig: {
+    contents: prompt,
+    config: {
       temperature: 0.1,
       maxOutputTokens: 256,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 
-  const result = await model.generateContent(prompt);
-  const text = result.response.text();
+  const text = response.text;
 
   if (!text || typeof text !== "string") {
     throw new Error("Gemini returned no text content");
