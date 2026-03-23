@@ -467,14 +467,40 @@ export function printAnalysisSummary(result: AnalyzeResult): void {
   }
 
   if (item.llm_provider && item.llm_estimate_mid !== null) {
-    console.log(`  LLM Est:     $${item.llm_estimate_low?.toFixed(2)} / $${item.llm_estimate_mid.toFixed(2)} / $${item.llm_estimate_high?.toFixed(2)} (${item.llm_provider}, advisory)`);
+    console.log(`  AI Est:      $${item.llm_estimate_low?.toFixed(2)} / $${item.llm_estimate_mid.toFixed(2)} / $${item.llm_estimate_high?.toFixed(2)} (${item.llm_provider})`);
+    if (item.llm_confidence !== null) {
+      console.log(`  AI Confidence: ${item.llm_confidence}/100`);
+    }
+    if (item.llm_reasoning) {
+      const reasoning = item.llm_reasoning.length > 200
+        ? item.llm_reasoning.slice(0, 197) + "..."
+        : item.llm_reasoning;
+      console.log(`  AI Reasoning: ${reasoning}`);
+    }
+    if (item.llm_comparables) {
+      try {
+        const comparables = JSON.parse(item.llm_comparables) as Array<{ name: string; estimatedPrice: number }>;
+        if (comparables.length > 0) {
+          console.log(`  Comparables:`);
+          for (const comp of comparables) {
+            console.log(`    - ${comp.name}: $${comp.estimatedPrice.toFixed(2)}`);
+          }
+        }
+      } catch {
+        // ignore malformed comparables JSON
+      }
+    }
+  }
+
+  if (item.analysis_source === "blended" && item.ebay_sold_median !== null && item.llm_estimate_mid !== null) {
+    console.log(`  Blend:       eBay $${item.ebay_sold_median.toFixed(2)} + AI $${item.llm_estimate_mid.toFixed(2)} → blended`);
   }
 
   if (item.recommended_max_bid !== null) {
     if (item.recommended_max_bid <= 0) {
       console.log(`  Max Bid:     $${item.recommended_max_bid.toFixed(2)} — NOT WORTH IT`);
     } else {
-      console.log(`  Max Bid:     $${item.recommended_max_bid.toFixed(2)}`);
+      console.log(`  Max Bid:     $${item.recommended_max_bid.toFixed(2)} (source: ${item.analysis_source})`);
     }
   } else {
     console.log(`  Max Bid:     N/A`);
