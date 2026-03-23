@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from "bun:test";
-import { getGeminiEstimate } from "./gemini";
+import { getGeminiEstimate, extractJson } from "./gemini";
 
 const originalFetch = globalThis.fetch;
 
@@ -41,28 +41,75 @@ describe("gemini", () => {
   });
 
   describe("getGeminiEstimate", () => {
-    it("should parse a valid Gemini response", async () => {
+    it("should parse a valid Gemini response with full analysis", async () => {
       mockFetch(async (url) => {
         expect(String(url)).toContain("generativelanguage.googleapis.com");
         expect(String(url)).toContain("gemini-2.5-flash");
-        return geminiResponse('{"low": 35.00, "mid": 50.00, "high": 65.00}');
+        return geminiResponse(JSON.stringify({
+          low: 35, mid: 50, high: 65,
+          confidence: 82,
+          reasoning: "Based on similar blenders",
+          comparables: [{ name: "Ninja BL610", estimatedPrice: 45 }],
+        }));
       });
 
       const result = await getGeminiEstimate("test-key", sampleInput);
-      expect(result.low).toBe(35.00);
-      expect(result.mid).toBe(50.00);
-      expect(result.high).toBe(65.00);
+      expect(result.low).toBe(35);
+      expect(result.mid).toBe(50);
+      expect(result.high).toBe(65);
+      expect(result.confidence).toBe(82);
+      expect(result.reasoning).toBe("Based on similar blenders");
+      expect(result.comparables).toEqual([{ name: "Ninja BL610", estimatedPrice: 45 }]);
     });
 
     it("should handle response wrapped in markdown code fences", async () => {
       mockFetch(async () => {
-        return geminiResponse('```json\n{"low": 20, "mid": 30, "high": 40}\n```');
+        return geminiResponse('```json\n{"low": 20, "mid": 30, "high": 40, "confidence": 70, "reasoning": "test", "comparables": []}\n```');
       });
 
       const result = await getGeminiEstimate("test-key", sampleInput);
       expect(result.low).toBe(20);
       expect(result.mid).toBe(30);
       expect(result.high).toBe(40);
+    });
+
+    it("should gracefully handle missing optional fields", async () => {
+      mockFetch(async () => {
+        return geminiResponse('{"low": 35, "mid": 50, "high": 65}');
+      });
+
+      const result = await getGeminiEstimate("test-key", sampleInput);
+      expect(result.low).toBe(35);
+      expect(result.mid).toBe(50);
+      expect(result.high).toBe(65);
+      expect(result.confidence).toBeNull();
+      expect(result.reasoning).toBeNull();
+      expect(result.comparables).toBeNull();
+    });
+
+    it("should handle partial fields (valid prices but invalid comparables)", async () => {
+      mockFetch(async () => {
+        return geminiResponse(JSON.stringify({
+          low: 10, mid: 20, high: 30,
+          confidence: 50,
+          reasoning: "Rough estimate",
+          comparables: [{ invalid: true }],
+        }));
+      });
+
+      const result = await getGeminiEstimate("test-key", sampleInput);
+      expect(result.mid).toBe(20);
+      expect(result.confidence).toBe(50);
+      expect(result.comparables).toBeNull();
+    });
+
+    it("should reject out-of-range confidence scores", async () => {
+      mockFetch(async () => {
+        return geminiResponse('{"low": 10, "mid": 20, "high": 30, "confidence": 150}');
+      });
+
+      const result = await getGeminiEstimate("test-key", sampleInput);
+      expect(result.confidence).toBeNull();
     });
 
     it("should throw on API error", async () => {
@@ -120,6 +167,9 @@ describe("gemini", () => {
       expect(prompt).toContain("Ninja Blender NJ600");
       expect(prompt).toContain("OPEN BOX");
       expect(prompt).toContain("$79.99");
+      expect(prompt).toContain("confidence");
+      expect(prompt).toContain("reasoning");
+      expect(prompt).toContain("comparables");
     });
 
     it("should handle null optional fields in input", async () => {
@@ -137,6 +187,30 @@ describe("gemini", () => {
       });
 
       expect(result.mid).toBe(20);
+    });
+  });
+
+  describe("extractJson", () => {
+    it("should extract a simple JSON object", () => {
+      expect(extractJson('{"a": 1}')).toBe('{"a": 1}');
+    });
+
+    it("should extract nested JSON objects", () => {
+      const input = '{"a": {"b": 1}, "c": [{"d": 2}]}';
+      expect(extractJson(input)).toBe(input);
+    });
+
+    it("should extract JSON from surrounding text", () => {
+      expect(extractJson('Here is the result: {"x": 1} done')).toBe('{"x": 1}');
+    });
+
+    it("should return null when no JSON found", () => {
+      expect(extractJson("no json here")).toBeNull();
+    });
+
+    it("should handle JSON with markdown code fences", () => {
+      const result = extractJson('```json\n{"low": 10, "high": 20}\n```');
+      expect(result).toBe('{"low": 10, "high": 20}');
     });
   });
 });
