@@ -4,6 +4,12 @@ import { getFirebaseIdToken } from "./firebase-auth";
 import { openDatabase, getItemByLotId } from "./db";
 import { clearBuildingsCache } from "./location";
 import { updateOpenItems } from "./live-update";
+import {
+  trackError,
+  resetOnSuccess,
+  checkAndNotifyBreakers,
+  CircuitBreakerTripped,
+} from "./circuit-breaker";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -28,6 +34,7 @@ export interface WatchlistSummary {
   liveUpdated: number;
   liveClosed: number;
   liveErrors: number;
+  circuitBreakerTripped: boolean;
 }
 
 export async function fetchWatchlist(idToken: string): Promise<WatchlistItem[]> {
@@ -76,7 +83,7 @@ export async function runWatchlist(
   log(`Found ${watchlistItems.length} item(s) on watchlist.`);
 
   if (watchlistItems.length === 0) {
-    return { total: 0, analyzed: 0, skipped: 0, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0 };
+    return { total: 0, analyzed: 0, skipped: 0, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0, circuitBreakerTripped: false };
   }
 
   // Determine which items need analysis
@@ -111,40 +118,68 @@ export async function runWatchlist(
       log(`  Lot ${item.id}${item.product_name ? ` — ${item.product_name}` : ""}`);
     }
     log(`Would skip ${skippedCount} already-analyzed item(s).`);
-    return { total: watchlistItems.length, analyzed: 0, skipped: skippedCount, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0 };
+    return { total: watchlistItems.length, analyzed: 0, skipped: skippedCount, errors: 0, liveUpdated: 0, liveClosed: 0, liveErrors: 0, circuitBreakerTripped: false };
   }
 
   // Clear buildings cache once per run
   clearBuildingsCache();
 
-  // Analyze items
+  // Analyze items with circuit breaker tracking
   let analyzedCount = 0;
   let errorCount = 0;
+  const cbDb = openDatabase();
+  let circuitBreakerTripped = false;
 
-  for (const item of toAnalyze) {
-    try {
-      log(`[${analyzedCount + errorCount + 1}/${toAnalyze.length}] Analyzing lot ${item.id}...`);
-      await analyzeItem(item.id, config, { force: options.force, dryRun: false });
-      analyzedCount++;
-    } catch (err) {
-      errorCount++;
-      log(`Error analyzing lot ${item.id}: ${(err as Error).message}`);
+  try {
+    for (const item of toAnalyze) {
+      try {
+        log(`[${analyzedCount + errorCount + 1}/${toAnalyze.length}] Analyzing lot ${item.id}...`);
+        await analyzeItem(item.id, config, { force: options.force, dryRun: false });
+        analyzedCount++;
+
+        // Reset circuit breaker for lot fetch errors on success
+        resetOnSuccess(cbDb, "macbid_lot_fetch");
+      } catch (err) {
+        errorCount++;
+        const error = err as Error;
+        log(`Error analyzing lot ${item.id}: ${error.message}`);
+
+        // Track error and check circuit breaker
+        trackError(cbDb, error, item.id, config.circuit_breaker_threshold);
+
+        try {
+          await checkAndNotifyBreakers(cbDb, config.circuit_breaker_threshold, config.env.ntfyUrl);
+        } catch (cbErr) {
+          if (cbErr instanceof CircuitBreakerTripped) {
+            log(`Circuit breaker tripped: ${cbErr.errorType} — halting batch.`);
+            circuitBreakerTripped = true;
+            break;
+          }
+          throw cbErr;
+        }
+      }
     }
+
+    // Update live data for all open items (skip if circuit breaker tripped)
+    let liveUpdateSummary = { updated: 0, closed: 0, errors: 0 };
+    if (!circuitBreakerTripped) {
+      log("Updating live auction data for open items...");
+      liveUpdateSummary = await updateOpenItems();
+    }
+
+    return {
+      total: watchlistItems.length,
+      analyzed: analyzedCount,
+      skipped: skippedCount,
+      errors: errorCount,
+      liveUpdated: liveUpdateSummary.updated,
+      liveClosed: liveUpdateSummary.closed,
+      liveErrors: liveUpdateSummary.errors,
+      circuitBreakerTripped,
+    };
+  } finally {
+    cbDb.close();
   }
-
-  // Update live data for all open items
-  log("Updating live auction data for open items...");
-  const liveUpdateSummary = await updateOpenItems();
-
-  return {
-    total: watchlistItems.length,
-    analyzed: analyzedCount,
-    skipped: skippedCount,
-    errors: errorCount,
-    liveUpdated: liveUpdateSummary.updated,
-    liveClosed: liveUpdateSummary.closed,
-    liveErrors: liveUpdateSummary.errors,
-  };
 }
 
 export function printWatchlistSummary(summary: WatchlistSummary): void {
@@ -157,5 +192,8 @@ export function printWatchlistSummary(summary: WatchlistSummary): void {
   console.log(`  Live updated:   ${summary.liveUpdated}`);
   console.log(`  Newly closed:   ${summary.liveClosed}`);
   console.log(`  Live errors:    ${summary.liveErrors}`);
+  if (summary.circuitBreakerTripped) {
+    console.log(`  CIRCUIT BREAKER TRIPPED — batch halted`);
+  }
   console.log("=========================");
 }

@@ -271,7 +271,7 @@ async function main(): Promise<void> {
         dryRun: parsed.flags.dryRun,
       });
       printWatchlistSummary(summary);
-      process.exit(summary.errors > 0 ? 1 : 0);
+      process.exit(summary.errors > 0 || summary.circuitBreakerTripped ? 1 : 0);
     } catch (err) {
       log(`Error: ${(err as Error).message}`);
       process.exit(1);
