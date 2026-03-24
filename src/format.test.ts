@@ -1,0 +1,626 @@
+import { describe, test, expect } from "bun:test";
+import type { AnalyzedItem } from "./db";
+import {
+  resolveDisplayData,
+  plainText,
+  telegramHtml,
+  type ItemDisplayData,
+} from "./format";
+
+function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
+  return {
+    lot_id: 12345,
+    auction_id: 100,
+    lot_number: "A1",
+    product_name: "MacBook Pro 16-inch",
+    upc: null,
+    condition: "Like New",
+    retail_price: 2499,
+    category: "Laptops",
+    description: "A laptop",
+    image_url: null,
+    building_id: 1,
+    location_id: 1,
+    auction_location: "Pittsburgh",
+    expected_close_date: null,
+    is_open: 1,
+    current_bid: 500,
+    total_bids: 10,
+    watchers_count: 5,
+    live_updated_at: null,
+    ebay_sold_median: 1800,
+    ebay_sold_low: 1500,
+    ebay_sold_high: 2100,
+    ebay_sold_count: 8,
+    ebay_search_query: "MacBook Pro 16",
+    llm_estimate_low: 1600,
+    llm_estimate_mid: 1900,
+    llm_estimate_high: 2200,
+    llm_provider: "gemini-2.5-flash",
+    llm_confidence: 82,
+    llm_reasoning: "High-end laptop in like-new condition retains strong value.",
+    llm_comparables: JSON.stringify([
+      { name: "MacBook Pro 16 M3 Pro", estimatedPrice: 1950 },
+      { name: "MacBook Pro 16 M2 Pro", estimatedPrice: 1700 },
+    ]),
+    recommended_max_bid: 1200,
+    sales_tax_rate: 0.07,
+    location_cost: 5,
+    location_tier: "local",
+    deal_score: 58,
+    needs_manual_review: 0,
+    manual_review_reason: null,
+    analyzed_at: "2026-03-22T10:00:00Z",
+    analysis_source: "blended",
+    ...overrides,
+  };
+}
+
+// ---------- resolveDisplayData ----------
+
+describe("resolveDisplayData", () => {
+  describe("max bid classification", () => {
+    test("null recommended_max_bid -> unavailable", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: null }),
+      );
+      expect(data.maxBid).toEqual({ type: "unavailable" });
+    });
+
+    test("negative recommended_max_bid -> not_worth_it", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: -10 }),
+      );
+      expect(data.maxBid).toEqual({ type: "not_worth_it", amount: -10 });
+    });
+
+    test("zero recommended_max_bid -> not_worth_it", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: 0 }),
+      );
+      expect(data.maxBid).toEqual({ type: "not_worth_it", amount: 0 });
+    });
+
+    test("positive recommended_max_bid -> value", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: 1200 }),
+      );
+      expect(data.maxBid).toEqual({ type: "value", amount: 1200 });
+    });
+  });
+
+  describe("eBay gating", () => {
+    test("ebay_sold_count > 0 populates ebay", () => {
+      const data = resolveDisplayData(makeItem());
+      expect(data.ebay).not.toBeNull();
+      expect(data.ebay!.median).toBe(1800);
+      expect(data.ebay!.low).toBe(1500);
+      expect(data.ebay!.high).toBe(2100);
+      expect(data.ebay!.count).toBe(8);
+    });
+
+    test("ebay_sold_count = 0 -> ebay is null", () => {
+      const data = resolveDisplayData(makeItem({ ebay_sold_count: 0 }));
+      expect(data.ebay).toBeNull();
+    });
+  });
+
+  describe("AI gating", () => {
+    test("llm_provider and llm_estimate_mid present -> ai populated", () => {
+      const data = resolveDisplayData(makeItem());
+      expect(data.ai).not.toBeNull();
+      expect(data.ai!.provider).toBe("gemini-2.5-flash");
+      expect(data.ai!.mid).toBe(1900);
+    });
+
+    test("llm_provider null -> ai is null", () => {
+      const data = resolveDisplayData(makeItem({ llm_provider: null }));
+      expect(data.ai).toBeNull();
+    });
+
+    test("llm_estimate_mid null -> ai is null", () => {
+      const data = resolveDisplayData(
+        makeItem({ llm_estimate_mid: null }),
+      );
+      expect(data.ai).toBeNull();
+    });
+  });
+
+  describe("comparables parsing", () => {
+    test("valid JSON array -> parsed comparables", () => {
+      const data = resolveDisplayData(makeItem());
+      expect(data.ai!.comparables).toHaveLength(2);
+      expect(data.ai!.comparables[0].name).toBe("MacBook Pro 16 M3 Pro");
+    });
+
+    test("invalid JSON -> empty array", () => {
+      const data = resolveDisplayData(
+        makeItem({ llm_comparables: "not json" }),
+      );
+      expect(data.ai!.comparables).toEqual([]);
+    });
+
+    test("null -> empty array", () => {
+      const data = resolveDisplayData(
+        makeItem({ llm_comparables: null }),
+      );
+      expect(data.ai!.comparables).toEqual([]);
+    });
+  });
+
+  describe("deal flags", () => {
+    test("bid below max -> isDeal true, isOverMax false", () => {
+      const data = resolveDisplayData(
+        makeItem({ current_bid: 500, recommended_max_bid: 1200 }),
+      );
+      expect(data.isDeal).toBe(true);
+      expect(data.isOverMax).toBe(false);
+    });
+
+    test("bid equal to max -> isDeal true, isOverMax false", () => {
+      const data = resolveDisplayData(
+        makeItem({ current_bid: 1200, recommended_max_bid: 1200 }),
+      );
+      expect(data.isDeal).toBe(true);
+      expect(data.isOverMax).toBe(false);
+    });
+
+    test("bid above max -> isDeal false, isOverMax true", () => {
+      const data = resolveDisplayData(
+        makeItem({ current_bid: 1500, recommended_max_bid: 1200 }),
+      );
+      expect(data.isDeal).toBe(false);
+      expect(data.isOverMax).toBe(true);
+    });
+
+    test("null max bid -> isDeal false, isOverMax false", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: null }),
+      );
+      expect(data.isDeal).toBe(false);
+      expect(data.isOverMax).toBe(false);
+    });
+
+    test("negative max bid -> isDeal false, isOverMax false", () => {
+      const data = resolveDisplayData(
+        makeItem({ recommended_max_bid: -5 }),
+      );
+      expect(data.isDeal).toBe(false);
+      expect(data.isOverMax).toBe(false);
+    });
+  });
+
+  describe("manual review", () => {
+    test("needs_manual_review true with reason", () => {
+      const data = resolveDisplayData(
+        makeItem({
+          needs_manual_review: 1,
+          manual_review_reason: "Price anomaly",
+        }),
+      );
+      expect(data.manualReview).toEqual({ reason: "Price anomaly" });
+    });
+
+    test("needs_manual_review true with null reason -> Unknown reason", () => {
+      const data = resolveDisplayData(
+        makeItem({
+          needs_manual_review: 1,
+          manual_review_reason: null,
+        }),
+      );
+      expect(data.manualReview).toEqual({ reason: "Unknown reason" });
+    });
+
+    test("needs_manual_review false -> null", () => {
+      const data = resolveDisplayData(
+        makeItem({ needs_manual_review: 0 }),
+      );
+      expect(data.manualReview).toBeNull();
+    });
+  });
+
+  test("deal_score is rounded", () => {
+    const data = resolveDisplayData(makeItem({ deal_score: 58.7 }));
+    expect(data.dealScore).toBe(59);
+  });
+
+  test("deal_score null stays null", () => {
+    const data = resolveDisplayData(makeItem({ deal_score: null }));
+    expect(data.dealScore).toBeNull();
+  });
+
+  test("blend populated for blended source", () => {
+    const data = resolveDisplayData(
+      makeItem({
+        analysis_source: "blended",
+        ebay_sold_median: 1800,
+        llm_estimate_mid: 1900,
+      }),
+    );
+    expect(data.blend).toEqual({ ebayMedian: 1800, aiMid: 1900 });
+  });
+
+  test("blend null for non-blended source", () => {
+    const data = resolveDisplayData(
+      makeItem({ analysis_source: "ebay-only" }),
+    );
+    expect(data.blend).toBeNull();
+  });
+
+  test("is_open 1 -> true, 0 -> false", () => {
+    expect(resolveDisplayData(makeItem({ is_open: 1 })).isOpen).toBe(true);
+    expect(resolveDisplayData(makeItem({ is_open: 0 })).isOpen).toBe(false);
+  });
+});
+
+// ---------- Helper to make display data directly ----------
+
+function makeDisplayData(
+  overrides: Partial<ItemDisplayData> = {},
+): ItemDisplayData {
+  return {
+    lotId: 12345,
+    productName: "MacBook Pro 16-inch",
+    condition: "Like New",
+    currentBid: 500,
+    totalBids: 10,
+    isOpen: true,
+    auctionLocation: "Pittsburgh",
+    locationTier: "local",
+    locationCost: 5,
+    analyzedAt: "2026-03-22T10:00:00Z",
+    analysisSource: "blended",
+    ebay: {
+      median: 1800,
+      low: 1500,
+      high: 2100,
+      count: 8,
+      searchQuery: "MacBook Pro 16",
+    },
+    ai: {
+      provider: "gemini-2.5-flash",
+      low: 1600,
+      mid: 1900,
+      high: 2200,
+      confidence: 82,
+      reasoning: "High-end laptop retains value.",
+      comparables: [
+        { name: "MacBook Pro 16 M3 Pro", estimatedPrice: 1950 },
+      ],
+    },
+    maxBid: { type: "value", amount: 1200 },
+    dealScore: 58,
+    salesTaxRate: 0.07,
+    manualReview: null,
+    isDeal: true,
+    isOverMax: false,
+    blend: { ebayMedian: 1800, aiMid: 1900 },
+    ...overrides,
+  };
+}
+
+// ---------- plainText renderer ----------
+
+describe("plainText", () => {
+  describe("summary", () => {
+    test("contains expected labels and values", () => {
+      const result = plainText.summary!(makeDisplayData());
+      expect(result).toContain("MacBook Pro 16-inch");
+      expect(result).toContain("Lot: 12345");
+      expect(result).toContain("Condition: Like New");
+      expect(result).toContain("Current Bid: $500.00 (10 bids)");
+      expect(result).toContain("eBay Median: $1800.00 (8 comps)");
+      expect(result).toContain("AI Estimate: $1900.00 (confidence: 82)");
+      expect(result).toContain("Max Bid: $1200.00");
+      expect(result).toContain("Deal Score: 58%");
+      expect(result).toContain("Source: blended");
+    });
+
+    test("no eBay comps shows 'None found'", () => {
+      const result = plainText.summary!(makeDisplayData({ ebay: null }));
+      expect(result).toContain("eBay Comps: None found");
+    });
+
+    test("manual review appends warning", () => {
+      const result = plainText.summary!(
+        makeDisplayData({ manualReview: { reason: "Price anomaly" } }),
+      );
+      expect(result).toContain("⚠️ MANUAL REVIEW: Price anomaly");
+    });
+
+    test("not_worth_it max bid", () => {
+      const result = plainText.summary!(
+        makeDisplayData({
+          maxBid: { type: "not_worth_it", amount: -5 },
+        }),
+      );
+      expect(result).toContain("NOT WORTH IT");
+    });
+
+    test("unavailable max bid shows N/A", () => {
+      const result = plainText.summary!(
+        makeDisplayData({ maxBid: { type: "unavailable" } }),
+      );
+      expect(result).toContain("Max Bid: N/A");
+    });
+  });
+
+  describe("detail", () => {
+    test("contains eBay, AI, and recommendation sections", () => {
+      const result = plainText.detail!(makeDisplayData());
+      expect(result).toContain("--- eBay Data ---");
+      expect(result).toContain(
+        "Low: $1500.00 | Mid: $1800.00 | High: $2100.00",
+      );
+      expect(result).toContain("--- AI Analysis ---");
+      expect(result).toContain(
+        "Low: $1600.00 | Mid: $1900.00 | High: $2200.00",
+      );
+      expect(result).toContain("Confidence: 82/100");
+      expect(result).toContain("Reasoning: High-end laptop retains value.");
+      expect(result).toContain("--- Cost Breakdown ---");
+      expect(result).toContain("Blended: eBay $1800.00 + AI $1900.00");
+      expect(result).toContain("Sales Tax Rate: 7.0%");
+      expect(result).toContain("Location Cost: $5.00");
+      expect(result).toContain("--- Recommendation ---");
+      expect(result).toContain("Max Bid: $1200.00");
+    });
+
+    test("no eBay comps shows fallback", () => {
+      const result = plainText.detail!(makeDisplayData({ ebay: null }));
+      expect(result).toContain("No eBay comps found.");
+    });
+
+    test("no AI shows fallback", () => {
+      const result = plainText.detail!(makeDisplayData({ ai: null }));
+      expect(result).toContain("No AI analysis available.");
+    });
+
+    test("comparables listed", () => {
+      const result = plainText.detail!(makeDisplayData());
+      expect(result).toContain("Comparables:");
+      expect(result).toContain("MacBook Pro 16 M3 Pro: $1950.00");
+    });
+
+    test("ebay-only source shows base estimate", () => {
+      const result = plainText.detail!(
+        makeDisplayData({
+          analysisSource: "ebay-only",
+          blend: null,
+          ebay: {
+            median: 1800,
+            low: 1500,
+            high: 2100,
+            count: 8,
+            searchQuery: null,
+          },
+        }),
+      );
+      expect(result).toContain("Base Estimate (eBay): $1800.00");
+    });
+
+    test("ai-only source shows base estimate", () => {
+      const result = plainText.detail!(
+        makeDisplayData({
+          analysisSource: "ai-only",
+          blend: null,
+          ai: {
+            provider: "gemini",
+            low: 1600,
+            mid: 1900,
+            high: 2200,
+            confidence: null,
+            reasoning: null,
+            comparables: [],
+          },
+        }),
+      );
+      expect(result).toContain("Base Estimate (AI): $1900.00");
+    });
+  });
+
+  describe("tableRow", () => {
+    test("contains lot id, name, condition, bid, max bid, score, status", () => {
+      const result = plainText.tableRow!(makeDisplayData());
+      expect(result).toContain("12345");
+      expect(result).toContain("MacBook Pro 16-inch");
+      expect(result).toContain("Like New");
+      expect(result).toContain("$500.00");
+      expect(result).toContain("$1200.00");
+      expect(result).toContain("58%");
+      expect(result).toContain("OPEN");
+    });
+
+    test("truncates long product names", () => {
+      const result = plainText.tableRow!(
+        makeDisplayData({
+          productName:
+            "Apple MacBook Pro 16-inch with M3 Max Chip and 64GB RAM",
+        }),
+      );
+      expect(result).toContain("…");
+      // truncated name should be 38 chars (37 + ellipsis)
+    });
+
+    test("closed item shows CLOSED", () => {
+      const result = plainText.tableRow!(
+        makeDisplayData({ isOpen: false }),
+      );
+      expect(result).toContain("CLOSED");
+    });
+
+    test("manual review shows [REVIEW]", () => {
+      const result = plainText.tableRow!(
+        makeDisplayData({ manualReview: { reason: "test" } }),
+      );
+      expect(result).toContain("[REVIEW]");
+    });
+  });
+
+  describe("table", () => {
+    test("has header, separator, and rows", () => {
+      const items = [makeDisplayData(), makeDisplayData({ lotId: 99999 })];
+      const result = plainText.table!(items);
+      const lines = result.split("\n");
+      expect(lines[0]).toContain("Lot ID");
+      expect(lines[0]).toContain("Product Name");
+      expect(lines[0]).toContain("Max Bid");
+      // separator is all dashes
+      expect(lines[1]).toMatch(/^-+$/);
+      // two data rows
+      expect(lines).toHaveLength(4);
+      expect(lines[3]).toContain("99999");
+    });
+  });
+
+  describe("activeOverview", () => {
+    test("empty items", () => {
+      const result = plainText.activeOverview!([]);
+      expect(result).toBe("No active items.");
+    });
+
+    test("sorts by deal score descending, nulls last", () => {
+      const items = [
+        makeDisplayData({ productName: "Low", dealScore: 30 }),
+        makeDisplayData({ productName: "High", dealScore: 90 }),
+        makeDisplayData({ productName: "None", dealScore: null }),
+      ];
+      const result = plainText.activeOverview!(items);
+      const highIdx = result.indexOf("High");
+      const lowIdx = result.indexOf("Low");
+      const noneIdx = result.indexOf("None");
+      expect(highIdx).toBeLessThan(lowIdx);
+      expect(lowIdx).toBeLessThan(noneIdx);
+    });
+
+    test("shows item count and deal count", () => {
+      const items = [
+        makeDisplayData({ isDeal: true }),
+        makeDisplayData({ isDeal: false, isOverMax: true }),
+      ];
+      const result = plainText.activeOverview!(items);
+      expect(result).toContain("2 active items, 1 deal");
+    });
+
+    test("over max indicator", () => {
+      const result = plainText.activeOverview!([
+        makeDisplayData({
+          isOverMax: true,
+          isDeal: false,
+          currentBid: 1500,
+          maxBid: { type: "value", amount: 1200 },
+        }),
+      ]);
+      expect(result).toContain("⛔ over max");
+    });
+  });
+});
+
+// ---------- telegramHtml renderer ----------
+
+describe("telegramHtml", () => {
+  describe("summary", () => {
+    test("contains bold tags around labels", () => {
+      const result = telegramHtml.summary!(makeDisplayData());
+      expect(result).toContain("<b>MacBook Pro 16-inch</b>");
+      expect(result).toContain("<b>Lot:</b> 12345");
+      expect(result).toContain("<b>Current Bid:</b> $500.00");
+      expect(result).toContain("<b>Max Bid:</b> $1200.00");
+      expect(result).toContain("<b>Deal Score:</b> 58%");
+      expect(result).toContain("<b>Source:</b> blended");
+    });
+
+    test("manual review in HTML", () => {
+      const result = telegramHtml.summary!(
+        makeDisplayData({ manualReview: { reason: "Check price" } }),
+      );
+      expect(result).toContain(
+        "⚠️ <b>MANUAL REVIEW:</b> Check price",
+      );
+    });
+  });
+
+  describe("detail", () => {
+    test("contains cost breakdown", () => {
+      const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("<b>--- Cost Breakdown ---</b>");
+      expect(result).toContain("Blended: eBay $1800.00 + AI $1900.00");
+      expect(result).toContain("Location Cost: $5.00");
+    });
+
+    test("contains recommendation section", () => {
+      const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("<b>--- Recommendation ---</b>");
+      expect(result).toContain("<b>Max Bid:</b> $1200.00");
+    });
+
+    test("comparables use bullet points", () => {
+      const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("• MacBook Pro 16 M3 Pro: $1950.00");
+    });
+  });
+
+  describe("activeOverview", () => {
+    test("sorts by deal score descending", () => {
+      const items = [
+        makeDisplayData({ productName: "Low", dealScore: 20 }),
+        makeDisplayData({ productName: "High", dealScore: 80 }),
+      ];
+      const result = telegramHtml.activeOverview!(items);
+      expect(result.indexOf("High")).toBeLessThan(result.indexOf("Low"));
+    });
+
+    test("empty items message", () => {
+      const result = telegramHtml.activeOverview!([]);
+      expect(result).toContain("No active items");
+    });
+
+    test("header is bold with counts", () => {
+      const items = [
+        makeDisplayData({ isDeal: true }),
+        makeDisplayData({ isDeal: true }),
+      ];
+      const result = telegramHtml.activeOverview!(items);
+      expect(result).toContain("<b>2 active items, 2 deals</b>");
+    });
+  });
+
+  describe("HTML escaping", () => {
+    test("escapes & < > in product names", () => {
+      const data = makeDisplayData({
+        productName: "Mac & PC <combo> test",
+      });
+      const summary = telegramHtml.summary!(data);
+      expect(summary).toContain("Mac &amp; PC &lt;combo&gt; test");
+      expect(summary).not.toContain("Mac & PC <combo>");
+    });
+
+    test("escapes reasoning text", () => {
+      const data = makeDisplayData({
+        ai: {
+          provider: "gemini",
+          low: 100,
+          mid: 200,
+          high: 300,
+          confidence: 50,
+          reasoning: "Value > expected & price < median",
+          comparables: [],
+        },
+      });
+      const detail = telegramHtml.detail!(data);
+      expect(detail).toContain(
+        "Value &gt; expected &amp; price &lt; median",
+      );
+    });
+
+    test("escapes manual review reason", () => {
+      const data = makeDisplayData({
+        manualReview: { reason: "Price <$10 & suspicious" },
+      });
+      const summary = telegramHtml.summary!(data);
+      expect(summary).toContain(
+        "Price &lt;$10 &amp; suspicious",
+      );
+    });
+  });
+});
