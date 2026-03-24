@@ -1,5 +1,6 @@
 import { Telegraf, Markup } from "telegraf";
 import type { AnalyzedItem } from "./db";
+import { openDatabase, getItemByLotId } from "./db";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
 import type { AnalyzeResult } from "./analyze";
 import { loadConfig } from "./config";
@@ -74,6 +75,105 @@ function summaryKeyboard(lotId: number, cached: boolean) {
   return Markup.inlineKeyboard(buttons);
 }
 
+function detailKeyboard(lotId: number) {
+  return Markup.inlineKeyboard([
+    Markup.button.callback("Summary", `summary:${lotId}`),
+    Markup.button.callback("Re-analyze", `reanalyze:${lotId}`),
+  ]);
+}
+
+function formatDetailHtml(item: AnalyzedItem): string {
+  const lines: string[] = [];
+
+  lines.push(`<b>${escapeHtml(item.product_name)}</b>`);
+  lines.push("");
+  lines.push(`<b>Lot:</b> ${item.lot_id}`);
+  lines.push(`<b>Condition:</b> ${escapeHtml(item.condition)}`);
+  lines.push(`<b>Location:</b> ${escapeHtml(item.auction_location ?? "Unknown")} (${escapeHtml(item.location_tier ?? "unknown")} tier)`);
+  lines.push(`<b>Current Bid:</b> $${item.current_bid.toFixed(2)} (${item.total_bids} bids)`);
+
+  // eBay section
+  lines.push("");
+  lines.push("<b>--- eBay Data ---</b>");
+  if (item.ebay_sold_count > 0) {
+    lines.push(`Low: $${(item.ebay_sold_low ?? 0).toFixed(2)} | Mid: $${(item.ebay_sold_median ?? 0).toFixed(2)} | High: $${(item.ebay_sold_high ?? 0).toFixed(2)}`);
+    lines.push(`Comps: ${item.ebay_sold_count}`);
+  } else {
+    lines.push("No eBay comps found.");
+  }
+
+  // AI section
+  lines.push("");
+  lines.push("<b>--- AI Analysis ---</b>");
+  if (item.llm_provider && item.llm_estimate_mid !== null) {
+    lines.push(`Low: $${(item.llm_estimate_low ?? 0).toFixed(2)} | Mid: $${item.llm_estimate_mid.toFixed(2)} | High: $${(item.llm_estimate_high ?? 0).toFixed(2)}`);
+    if (item.llm_confidence !== null) {
+      lines.push(`Confidence: ${item.llm_confidence}/100`);
+    }
+    if (item.llm_reasoning) {
+      lines.push("");
+      lines.push(`<b>Reasoning:</b> ${escapeHtml(item.llm_reasoning)}`);
+    }
+    if (item.llm_comparables) {
+      try {
+        const comparables = JSON.parse(item.llm_comparables) as Array<{ name: string; estimatedPrice: number }>;
+        if (comparables.length > 0) {
+          lines.push("");
+          lines.push("<b>Comparables:</b>");
+          for (const comp of comparables) {
+            lines.push(`  • ${escapeHtml(comp.name)}: $${comp.estimatedPrice.toFixed(2)}`);
+          }
+        }
+      } catch {
+        // ignore malformed comparables JSON
+      }
+    }
+  } else {
+    lines.push("No AI analysis available.");
+  }
+
+  // Cost breakdown
+  lines.push("");
+  lines.push("<b>--- Cost Breakdown ---</b>");
+
+  if (item.analysis_source === "blended" && item.ebay_sold_median !== null && item.llm_estimate_mid !== null) {
+    lines.push(`Blended: eBay $${item.ebay_sold_median.toFixed(2)} + AI $${item.llm_estimate_mid.toFixed(2)}`);
+  } else if (item.analysis_source === "ebay-only" && item.ebay_sold_median !== null) {
+    lines.push(`Base Estimate (eBay): $${item.ebay_sold_median.toFixed(2)}`);
+  } else if (item.analysis_source === "ai-only" && item.llm_estimate_mid !== null) {
+    lines.push(`Base Estimate (AI): $${item.llm_estimate_mid.toFixed(2)}`);
+  }
+
+  if (item.sales_tax_rate !== null) {
+    lines.push(`Sales Tax Rate: ${(item.sales_tax_rate * 100).toFixed(1)}%`);
+  }
+  lines.push(`Location Cost: $${item.location_cost.toFixed(2)}`);
+
+  // Recommendation
+  lines.push("");
+  lines.push("<b>--- Recommendation ---</b>");
+  if (item.recommended_max_bid !== null) {
+    if (item.recommended_max_bid <= 0) {
+      lines.push(`<b>Max Bid:</b> $${item.recommended_max_bid.toFixed(2)} — NOT WORTH IT`);
+    } else {
+      lines.push(`<b>Max Bid:</b> $${item.recommended_max_bid.toFixed(2)}`);
+    }
+  } else {
+    lines.push(`<b>Max Bid:</b> N/A`);
+  }
+  if (item.deal_score !== null) {
+    lines.push(`<b>Deal Score:</b> ${item.deal_score.toFixed(0)}%`);
+  }
+  lines.push(`<b>Source:</b> ${escapeHtml(item.analysis_source)}`);
+
+  if (item.needs_manual_review) {
+    lines.push("");
+    lines.push(`⚠️ <b>MANUAL REVIEW:</b> ${escapeHtml(item.manual_review_reason ?? "Unknown reason")}`);
+  }
+
+  return lines.join("\n");
+}
+
 /** Try to parse a mac.bid URL or lot ID from the message text. Returns null if not recognized. */
 function extractInput(text: string): string | null {
   const trimmed = text.trim();
@@ -122,6 +222,54 @@ export function startTelegramBot(): void {
       return;
     }
     return next();
+  });
+
+  // Handle full details callback
+  bot.action(/^details:(\d+)$/, async (ctx) => {
+    const lotId = Number(ctx.match[1]);
+    try {
+      await ctx.answerCbQuery();
+      const db = openDatabase();
+      try {
+        const item = getItemByLotId(db, lotId);
+        if (!item) {
+          await ctx.editMessageText(`No analysis found for lot ${lotId}.`);
+          return;
+        }
+        const html = formatDetailHtml(item);
+        const keyboard = detailKeyboard(lotId);
+        await ctx.editMessageText(html, { parse_mode: "HTML", ...keyboard });
+      } finally {
+        db.close();
+      }
+    } catch (err) {
+      const errMsg = (err as Error).message;
+      log(`Detail view error for lot ${lotId}: ${errMsg}`);
+    }
+  });
+
+  // Handle summary callback (collapse back from detail)
+  bot.action(/^summary:(\d+)$/, async (ctx) => {
+    const lotId = Number(ctx.match[1]);
+    try {
+      await ctx.answerCbQuery();
+      const db = openDatabase();
+      try {
+        const item = getItemByLotId(db, lotId);
+        if (!item) {
+          await ctx.editMessageText(`No analysis found for lot ${lotId}.`);
+          return;
+        }
+        const html = formatSummaryHtml(item);
+        const keyboard = summaryKeyboard(lotId, true);
+        await ctx.editMessageText(html, { parse_mode: "HTML", ...keyboard });
+      } finally {
+        db.close();
+      }
+    } catch (err) {
+      const errMsg = (err as Error).message;
+      log(`Summary view error for lot ${lotId}: ${errMsg}`);
+    }
   });
 
   // Handle re-analyze callback
