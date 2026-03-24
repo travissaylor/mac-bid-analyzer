@@ -3,6 +3,7 @@ import type { AnalyzedItem } from "./db";
 import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
+import { syncLiveData } from "./sync";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -279,6 +280,8 @@ async function runDetail(lotIdStr: string): Promise<void> {
 async function runResults(flags: ParsedCommand["flags"]): Promise<void> {
   const db = openDatabase();
   try {
+    await syncLiveData(db);
+
     let items: AnalyzedItem[];
 
     if (flags.open) {
