@@ -4,6 +4,7 @@ import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./a
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";
+import { startTelegramBot } from "./telegram";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -22,6 +23,7 @@ function printUsage(): void {
   console.log("  analyze <url|lotId>  Analyze a single mac.bid item");
   console.log("  results              Query and display stored analysis results");
   console.log("  detail <lotId>       Show full AI analysis for a specific item");
+  console.log("  telegram             Start the Telegram bot in long-polling mode");
   console.log("");
   console.log("Global options:");
   console.log("  --help               Show help for a subcommand");
@@ -67,7 +69,7 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "results" | "detail" | "help";
+  subcommand: "analyze" | "results" | "detail" | "telegram" | "help";
   input?: string;
   flags: {
     help: boolean;
@@ -131,7 +133,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail") {
+  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
   }
 
@@ -357,6 +359,11 @@ async function main(): Promise<void> {
       log(`Error: ${(err as Error).message}`);
       process.exit(1);
     }
+  }
+
+  if (parsed.subcommand === "telegram") {
+    startTelegramBot();
+    return; // bot runs until killed
   }
 
   if (parsed.subcommand === "results") {

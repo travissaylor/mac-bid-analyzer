@@ -15,6 +15,7 @@
   },
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.46.0"
+    "@google/genai": "^1.46.0",
+    "telegraf": "^4.16.3"
   }
 }
