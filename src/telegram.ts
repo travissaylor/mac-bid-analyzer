@@ -5,6 +5,7 @@ import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
 import type { AnalyzeResult } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
+import { syncLiveData } from "./sync";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -191,6 +192,46 @@ function extractInput(text: string): string | null {
   return null;
 }
 
+function formatActiveOverviewHtml(items: AnalyzedItem[]): string {
+  if (items.length === 0) {
+    return "No active items. Send a mac.bid URL or lot ID to analyze an item.";
+  }
+
+  // Sort by deal score descending (nulls last)
+  const sorted = [...items].sort((a, b) => {
+    if (a.deal_score === null && b.deal_score === null) return 0;
+    if (a.deal_score === null) return 1;
+    if (b.deal_score === null) return -1;
+    return b.deal_score - a.deal_score;
+  });
+
+  const deals = sorted.filter(
+    (i) => i.deal_score !== null && i.recommended_max_bid !== null && i.current_bid <= i.recommended_max_bid
+  ).length;
+
+  const lines: string[] = [];
+  lines.push(`<b>${sorted.length} active item${sorted.length === 1 ? "" : "s"}, ${deals} deal${deals === 1 ? "" : "s"}</b>`);
+
+  for (const item of sorted) {
+    lines.push("");
+    lines.push(`<b>${escapeHtml(item.product_name)}</b>`);
+    lines.push(`Bid: $${item.current_bid.toFixed(2)}`);
+
+    if (item.recommended_max_bid !== null) {
+      lines.push(`Max: $${item.recommended_max_bid.toFixed(2)}`);
+      if (item.current_bid > item.recommended_max_bid) {
+        lines.push("⛔ over max");
+      } else if (item.deal_score !== null) {
+        lines.push(`Deal: ${item.deal_score.toFixed(0)}%`);
+      }
+    } else {
+      lines.push("Max: N/A");
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export function startTelegramBot(): void {
   const token = Bun.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
@@ -222,6 +263,44 @@ export function startTelegramBot(): void {
       return;
     }
     return next();
+  });
+
+  // /active command — show overview of open analyzed items
+  bot.command("active", async (ctx) => {
+    let statusMsg;
+    try {
+      statusMsg = await ctx.reply("Syncing...");
+    } catch {
+      return;
+    }
+
+    try {
+      const db = openDatabase();
+      try {
+        const { items } = await syncLiveData(db);
+        const html = formatActiveOverviewHtml(items);
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          statusMsg.message_id,
+          undefined,
+          html,
+          { parse_mode: "HTML" },
+        );
+        log(`Active overview: ${items.length} item(s)`);
+      } finally {
+        db.close();
+      }
+    } catch (err) {
+      const errMsg = (err as Error).message;
+      log(`Active command error: ${errMsg}`);
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        statusMsg.message_id,
+        undefined,
+        `Error syncing active items: ${escapeHtml(errMsg)}`,
+        { parse_mode: "HTML" },
+      );
+    }
   });
 
   // Handle full details callback
