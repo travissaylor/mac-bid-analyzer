@@ -549,3 +549,29 @@ export const telegramHtml: ItemRenderer<string> = {
     return lines.join("\n");
   },
 };
+
+// --- Convenience wrappers ---
+
+export function toTextSummary(item: AnalyzedItem): string {
+  return plainText.summary!(resolveDisplayData(item));
+}
+
+export function toTextDetail(item: AnalyzedItem): string {
+  return plainText.detail!(resolveDisplayData(item));
+}
+
+export function toTextTableRow(item: AnalyzedItem): string {
+  return plainText.tableRow!(resolveDisplayData(item));
+}
+
+export function toHtmlSummary(item: AnalyzedItem): string {
+  return telegramHtml.summary!(resolveDisplayData(item));
+}
+
+export function toHtmlDetail(item: AnalyzedItem): string {
+  return telegramHtml.detail!(resolveDisplayData(item));
+}
+
+export function toHtmlActiveOverview(items: AnalyzedItem[]): string {
+  return telegramHtml.activeOverview!(items.map(resolveDisplayData));
+}
