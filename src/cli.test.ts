@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseArgs, printItemDetail } from "./cli";
+import { parseArgs, printAnalysisSummary } from "./cli";
 import type { AnalyzedItem } from "./db";
 
 function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
@@ -166,114 +166,102 @@ describe("parseArgs", () => {
   });
 });
 
-describe("printItemDetail", () => {
-  test("displays full detail for item with all data", () => {
+describe("printAnalysisSummary", () => {
+  test("prints 'Analysis Complete' header for new analysis", () => {
     const logs: string[] = [];
     const origLog = console.log;
     console.log = (msg: string) => logs.push(msg);
     try {
-      printItemDetail(makeItem());
+      printAnalysisSummary({ item: makeItem(), skipped: false });
     } finally {
       console.log = origLog;
     }
-
     const output = logs.join("\n");
-    expect(output).toContain("Lot 12345");
+    expect(output).toContain("Analysis Complete");
+  });
+
+  test("prints 'Existing Analysis' header for skipped analysis", () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      printAnalysisSummary({ item: makeItem(), skipped: true });
+    } finally {
+      console.log = origLog;
+    }
+    const output = logs.join("\n");
+    expect(output).toContain("Existing Analysis");
+  });
+
+  test("prints GOOD DEAL footer when current bid is below max bid", () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      printAnalysisSummary({
+        item: makeItem({ current_bid: 500, recommended_max_bid: 1200 }),
+        skipped: false,
+      });
+    } finally {
+      console.log = origLog;
+    }
+    const output = logs.join("\n");
+    expect(output).toContain("GOOD DEAL");
+  });
+
+  test("prints PASS footer when current bid exceeds max bid", () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      printAnalysisSummary({
+        item: makeItem({ current_bid: 1500, recommended_max_bid: 1200 }),
+        skipped: false,
+      });
+    } finally {
+      console.log = origLog;
+    }
+    const output = logs.join("\n");
+    expect(output).toContain("PASS");
+  });
+
+  test("prints MANUAL REVIEW for flagged items without GOOD DEAL/PASS", () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      printAnalysisSummary({
+        item: makeItem({
+          needs_manual_review: 1,
+          manual_review_reason: "Condition requires review",
+          recommended_max_bid: null,
+          deal_score: null,
+        }),
+        skipped: false,
+      });
+    } finally {
+      console.log = origLog;
+    }
+    const output = logs.join("\n");
+    expect(output).toContain("MANUAL REVIEW");
+    expect(output).toContain("Condition requires review");
+    expect(output).not.toContain("GOOD DEAL");
+    expect(output).not.toContain("PASS");
+  });
+
+  test("includes product name and key fields from summary", () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      printAnalysisSummary({ item: makeItem(), skipped: false });
+    } finally {
+      console.log = origLog;
+    }
+    const output = logs.join("\n");
     expect(output).toContain("MacBook Pro 16-inch");
-    expect(output).toContain("Like New");
+    expect(output).toContain("12345");
     expect(output).toContain("$500.00");
-    expect(output).toContain("OPEN");
-    expect(output).toContain("blended");
-    // eBay section
-    expect(output).toContain("eBay Data");
-    expect(output).toContain("$1800.00");
-    expect(output).toContain("8");
-    expect(output).toContain("MacBook Pro 16");
-    // AI section
-    expect(output).toContain("AI Analysis");
-    expect(output).toContain("gemini-2.5-flash");
-    expect(output).toContain("$1900.00");
-    expect(output).toContain("82/100");
-    expect(output).toContain("retains strong value");
-    expect(output).toContain("MacBook Pro 16 M3 Pro");
-    expect(output).toContain("$1950.00");
-    // Recommendation
     expect(output).toContain("$1200.00");
-    expect(output).toContain("58%");
-  });
-
-  test("handles item with no AI analysis", () => {
-    const logs: string[] = [];
-    const origLog = console.log;
-    console.log = (msg: string) => logs.push(msg);
-    try {
-      printItemDetail(makeItem({
-        llm_provider: null,
-        llm_estimate_low: null,
-        llm_estimate_mid: null,
-        llm_estimate_high: null,
-        llm_confidence: null,
-        llm_reasoning: null,
-        llm_comparables: null,
-        analysis_source: "ebay",
-      }));
-    } finally {
-      console.log = origLog;
-    }
-
-    const output = logs.join("\n");
-    expect(output).toContain("No AI analysis available");
-  });
-
-  test("handles item with no eBay comps", () => {
-    const logs: string[] = [];
-    const origLog = console.log;
-    console.log = (msg: string) => logs.push(msg);
-    try {
-      printItemDetail(makeItem({
-        ebay_sold_median: null,
-        ebay_sold_low: null,
-        ebay_sold_high: null,
-        ebay_sold_count: 0,
-        ebay_search_query: null,
-        analysis_source: "ai",
-      }));
-    } finally {
-      console.log = origLog;
-    }
-
-    const output = logs.join("\n");
-    expect(output).toContain("No eBay comps found");
-  });
-
-  test("handles item needing manual review", () => {
-    const logs: string[] = [];
-    const origLog = console.log;
-    console.log = (msg: string) => logs.push(msg);
-    try {
-      printItemDetail(makeItem({
-        needs_manual_review: 1,
-        manual_review_reason: "Low confidence",
-      }));
-    } finally {
-      console.log = origLog;
-    }
-
-    const output = logs.join("\n");
-    expect(output).toContain("Low confidence");
-  });
-
-  test("handles null recommended_max_bid", () => {
-    const logs: string[] = [];
-    const origLog = console.log;
-    console.log = (msg: string) => logs.push(msg);
-    try {
-      printItemDetail(makeItem({ recommended_max_bid: null, deal_score: null }));
-    } finally {
-      console.log = origLog;
-    }
-
-    const output = logs.join("\n");
-    expect(output).toContain("Max Bid:     N/A");
   });
 });

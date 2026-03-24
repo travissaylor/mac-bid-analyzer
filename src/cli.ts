@@ -1,10 +1,12 @@
 import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems, getItemByLotId } from "./db";
 import type { AnalyzedItem } from "./db";
-import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./analyze";
+import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
+import type { AnalyzeResult } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
+import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -156,108 +158,29 @@ function formatResultsTable(items: AnalyzedItem[]): void {
     return;
   }
 
-  const header = [
-    "Lot ID".padEnd(10),
-    "Product Name".padEnd(40),
-    "Condition".padEnd(10),
-    "Bid".padEnd(8),
-    "Max Bid".padEnd(10),
-    "Score".padEnd(8),
-    "Status".padEnd(8),
-  ].join(" ");
-
-  console.log(header);
-  console.log("-".repeat(header.length));
-
-  for (const item of items) {
-    const status = item.is_open ? "OPEN" : "CLOSED";
-    const maxBid = item.recommended_max_bid !== null ? `$${item.recommended_max_bid.toFixed(2)}` : "N/A";
-    const score = item.deal_score !== null ? `${item.deal_score.toFixed(0)}%` : "N/A";
-    const review = item.needs_manual_review ? " [REVIEW]" : "";
-
-    console.log([
-      String(item.lot_id).padEnd(10),
-      (item.product_name.length > 38 ? item.product_name.slice(0, 37) + "…" : item.product_name).padEnd(40),
-      item.condition.padEnd(10),
-      `$${item.current_bid.toFixed(2)}`.padEnd(8),
-      maxBid.padEnd(10),
-      score.padEnd(8),
-      (status + review).padEnd(8),
-    ].join(" "));
-  }
-
+  const displayItems = items.map(resolveDisplayData);
+  console.log(plainText.table!(displayItems));
   log(`${items.length} result(s) displayed.`);
 }
 
-export function printItemDetail(item: AnalyzedItem): void {
-  console.log(`--- Detail: Lot ${item.lot_id} ---`);
-  console.log(`  Product:     ${item.product_name}`);
-  console.log(`  Condition:   ${item.condition}`);
-  console.log(`  Current Bid: $${item.current_bid.toFixed(2)}`);
-  console.log(`  Status:      ${item.is_open ? "OPEN" : "CLOSED"}`);
-  console.log(`  Location:    ${item.auction_location ?? "Unknown"} (${item.location_tier ?? "unknown"} tier, +$${item.location_cost.toFixed(2)})`);
-  console.log(`  Analyzed:    ${item.analyzed_at}`);
-  console.log(`  Source:      ${item.analysis_source}`);
-  console.log("");
+export function printAnalysisSummary(result: AnalyzeResult): void {
+  const { item, skipped } = result;
 
-  // eBay section
-  console.log("  --- eBay Data ---");
-  if (item.ebay_sold_count > 0) {
-    console.log(`  Median:      $${(item.ebay_sold_median ?? 0).toFixed(2)}`);
-    console.log(`  Low:         $${(item.ebay_sold_low ?? 0).toFixed(2)}`);
-    console.log(`  High:        $${(item.ebay_sold_high ?? 0).toFixed(2)}`);
-    console.log(`  Comps:       ${item.ebay_sold_count}`);
-    if (item.ebay_search_query) {
-      console.log(`  Search:      ${item.ebay_search_query}`);
-    }
+  if (skipped) {
+    log("--- Existing Analysis ---");
   } else {
-    console.log("  No eBay comps found.");
+    log("--- Analysis Complete ---");
   }
-  console.log("");
 
-  // AI section
-  console.log("  --- AI Analysis ---");
-  if (item.llm_provider && item.llm_estimate_mid !== null) {
-    console.log(`  Provider:    ${item.llm_provider}`);
-    console.log(`  Low:         $${(item.llm_estimate_low ?? 0).toFixed(2)}`);
-    console.log(`  Mid:         $${item.llm_estimate_mid.toFixed(2)}`);
-    console.log(`  High:        $${(item.llm_estimate_high ?? 0).toFixed(2)}`);
-    if (item.llm_confidence !== null) {
-      console.log(`  Confidence:  ${item.llm_confidence}/100`);
-    }
-    if (item.llm_reasoning) {
-      console.log(`  Reasoning:   ${item.llm_reasoning}`);
-    }
-    if (item.llm_comparables) {
-      try {
-        const comparables = JSON.parse(item.llm_comparables) as Array<{ name: string; estimatedPrice: number }>;
-        if (comparables.length > 0) {
-          console.log("  Comparables:");
-          for (const comp of comparables) {
-            console.log(`    - ${comp.name}: $${comp.estimatedPrice.toFixed(2)}`);
-          }
-        }
-      } catch {
-        // ignore malformed comparables JSON
-      }
-    }
-  } else {
-    console.log("  No AI analysis available for this item.");
-  }
-  console.log("");
+  console.log(toTextSummary(item));
 
-  // Final recommendation
-  console.log("  --- Recommendation ---");
-  if (item.recommended_max_bid !== null) {
-    console.log(`  Max Bid:     $${item.recommended_max_bid.toFixed(2)}`);
-  } else {
-    console.log(`  Max Bid:     N/A`);
-  }
-  if (item.deal_score !== null) {
-    console.log(`  Deal Score:  ${item.deal_score.toFixed(0)}%`);
-  }
-  if (item.needs_manual_review) {
-    console.log(`  Review:      ${item.manual_review_reason}`);
+  const data = resolveDisplayData(item);
+  if (data.manualReview) {
+    // Already printed in summary
+  } else if (data.isDeal) {
+    console.log("✓ GOOD DEAL — current bid is below max bid");
+  } else if (data.isOverMax) {
+    console.log("✗ PASS — current bid exceeds max bid");
   }
 }
 
@@ -273,7 +196,7 @@ async function runDetail(lotIdStr: string): Promise<void> {
     if (!item) {
       throw new Error(`No analysis found for lot ${lotId}. Run 'analyze ${lotId}' first.`);
     }
-    printItemDetail(item);
+    console.log(toTextDetail(item));
   } finally {
     db.close();
   }
