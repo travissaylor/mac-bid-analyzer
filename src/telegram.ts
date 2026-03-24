@@ -303,6 +303,21 @@ export function startTelegramBot(): void {
     }
   });
 
+  // /help command — list available commands and usage
+  bot.command("help", async (ctx) => {
+    const html = [
+      "<b>mac.bid Analyzer Bot</b>",
+      "",
+      "<b>Commands:</b>",
+      "/active — Show all open analyzed items with live data",
+      "/help — Show this help message",
+      "",
+      "<b>Usage:</b>",
+      "Send a mac.bid URL or a bare lot ID number to analyze an item.",
+    ].join("\n");
+    await ctx.reply(html, { parse_mode: "HTML" });
+  });
+
   // Handle full details callback
   bot.action(/^details:(\d+)$/, async (ctx) => {
     const lotId = Number(ctx.match[1]);
