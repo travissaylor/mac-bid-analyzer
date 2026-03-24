@@ -199,4 +199,23 @@ export function loadConfig(cliArgs: string[] = [], projectRoot?: string): AppCon
   };
 }
 
+export function validateTelegramEnv(): { token: string; allowedUserId: number } {
+  const token = Bun.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN environment variable is required");
+  }
+
+  const allowedUserIdStr = Bun.env.TELEGRAM_ALLOWED_USER_ID;
+  if (!allowedUserIdStr) {
+    throw new Error("TELEGRAM_ALLOWED_USER_ID environment variable is required");
+  }
+
+  const allowedUserId = Number(allowedUserIdStr);
+  if (isNaN(allowedUserId)) {
+    throw new Error("TELEGRAM_ALLOWED_USER_ID must be a numeric user ID");
+  }
+
+  return { token, allowedUserId };
+}
+
 export { DEFAULTS };

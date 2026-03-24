@@ -3,7 +3,7 @@ import type { AnalyzedItem } from "./db";
 import { openDatabase, getItemByLotId } from "./db";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
 import type { AnalyzeResult } from "./analyze";
-import { loadConfig } from "./config";
+import { loadConfig, validateTelegramEnv } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";
 
@@ -233,23 +233,7 @@ function formatActiveOverviewHtml(items: AnalyzedItem[]): string {
 }
 
 export function startTelegramBot(): void {
-  const token = Bun.env.TELEGRAM_BOT_TOKEN;
-  if (!token) {
-    console.error("Error: TELEGRAM_BOT_TOKEN environment variable is required");
-    process.exit(1);
-  }
-
-  const allowedUserId = Bun.env.TELEGRAM_ALLOWED_USER_ID;
-  if (!allowedUserId) {
-    console.error("Error: TELEGRAM_ALLOWED_USER_ID environment variable is required");
-    process.exit(1);
-  }
-
-  const allowedId = Number(allowedUserId);
-  if (isNaN(allowedId)) {
-    console.error("Error: TELEGRAM_ALLOWED_USER_ID must be a numeric user ID");
-    process.exit(1);
-  }
+  const { token, allowedUserId: allowedId } = validateTelegramEnv();
 
   const bot = new Telegraf(token);
 
