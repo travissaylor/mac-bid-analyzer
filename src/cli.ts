@@ -3,7 +3,6 @@ import type { AnalyzedItem } from "./db";
 import { parseLotId, resolveLotId, analyzeItem, printAnalysisSummary } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
-import { runWatchlist, printWatchlistSummary } from "./watchlist";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -20,7 +19,6 @@ function printUsage(): void {
   console.log("");
   console.log("Subcommands:");
   console.log("  analyze <url|lotId>  Analyze a single mac.bid item");
-  console.log("  watchlist            Analyze all items on your mac.bid watchlist");
   console.log("  results              Query and display stored analysis results");
   console.log("  detail <lotId>       Show full AI analysis for a specific item");
   console.log("");
@@ -48,18 +46,6 @@ function printAnalyzeHelp(): void {
   console.log("  --dry-run            Run without writing to the database");
 }
 
-function printWatchlistHelp(): void {
-  console.log(`${timestamp()} Usage: bun run src/cli.ts watchlist [options]`);
-  console.log("");
-  console.log("Fetch and analyze all items on your mac.bid watchlist.");
-  console.log("Skips items already analyzed unless --force is used.");
-  console.log("");
-  console.log("Options:");
-  console.log("  --force              Re-analyze all items");
-  console.log("  --threshold <0-1>    Override discount threshold");
-  console.log("  --dry-run            Run without writing to the database");
-}
-
 function printDetailHelp(): void {
   console.log(`${timestamp()} Usage: bun run src/cli.ts detail <lotId>`);
   console.log("");
@@ -80,7 +66,7 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "watchlist" | "results" | "detail" | "help";
+  subcommand: "analyze" | "results" | "detail" | "help";
   input?: string;
   flags: {
     help: boolean;
@@ -144,7 +130,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "watchlist" && subcommand !== "results" && subcommand !== "detail") {
+  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
   }
 
@@ -329,8 +315,6 @@ async function main(): Promise<void> {
   if (parsed.subcommand === "help" || parsed.flags.help) {
     if (parsed.subcommand === "analyze") {
       printAnalyzeHelp();
-    } else if (parsed.subcommand === "watchlist") {
-      printWatchlistHelp();
     } else if (parsed.subcommand === "results") {
       printResultsHelp();
     } else if (parsed.subcommand === "detail") {
@@ -356,24 +340,6 @@ async function main(): Promise<void> {
       });
       printAnalysisSummary(result);
       process.exit(0);
-    } catch (err) {
-      log(`Error: ${(err as Error).message}`);
-      process.exit(1);
-    }
-  }
-
-  if (parsed.subcommand === "watchlist") {
-    try {
-      const config = loadConfig(args);
-      clearBuildingsCache();
-
-      log("Running watchlist analysis...");
-      const summary = await runWatchlist(config, {
-        force: parsed.flags.force,
-        dryRun: parsed.flags.dryRun,
-      });
-      printWatchlistSummary(summary);
-      process.exit(summary.errors > 0 || summary.circuitBreakerTripped ? 1 : 0);
     } catch (err) {
       log(`Error: ${(err as Error).message}`);
       process.exit(1);

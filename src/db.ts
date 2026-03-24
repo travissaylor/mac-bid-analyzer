@@ -44,20 +44,6 @@ export interface AnalyzedItem {
   analysis_source: string;
 }
 
-export interface ErrorLogEntry {
-  error_type: string;
-  error_message: string;
-  lot_id: number | null;
-}
-
-export interface CircuitBreakerRow {
-  error_type: string;
-  consecutive_failures: number;
-  first_failure_at: string;
-  last_failure_at: string;
-  notified: number;
-}
-
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS analyzed_items (
   lot_id            INTEGER PRIMARY KEY,
@@ -107,28 +93,11 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
   analysis_source   TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS error_log (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  error_type      TEXT NOT NULL,
-  error_message   TEXT NOT NULL,
-  lot_id          INTEGER,
-  occurred_at     TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS circuit_breaker (
-  error_type          TEXT PRIMARY KEY,
-  consecutive_failures INTEGER NOT NULL DEFAULT 0,
-  first_failure_at    TEXT NOT NULL,
-  last_failure_at     TEXT NOT NULL,
-  notified            INTEGER NOT NULL DEFAULT 0
-);
-
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_is_open ON analyzed_items(is_open);
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_auction_id ON analyzed_items(auction_id);
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_category ON analyzed_items(category);
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_condition ON analyzed_items(condition);
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_deal_score ON analyzed_items(deal_score);
-CREATE INDEX IF NOT EXISTS idx_error_log_type_time ON error_log(error_type, occurred_at);
 `;
 
 function migrateSchema(db: Database): void {
@@ -321,40 +290,3 @@ export function updateLiveData(db: Database, lotId: number, data: LiveData): voi
   stmt.run(data.current_bid, data.total_bids, data.watchers_count, data.is_open, now, dealScore, lotId);
 }
 
-export function logError(db: Database, entry: ErrorLogEntry): void {
-  const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO error_log (error_type, error_message, lot_id, occurred_at)
-    VALUES (?, ?, ?, ?)
-  `);
-  stmt.run(entry.error_type, entry.error_message, entry.lot_id, now);
-}
-
-export function recordCircuitBreakerFailure(db: Database, errorType: string): void {
-  const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO circuit_breaker (error_type, consecutive_failures, first_failure_at, last_failure_at)
-    VALUES (?, 1, ?, ?)
-    ON CONFLICT(error_type) DO UPDATE SET
-      consecutive_failures = consecutive_failures + 1,
-      last_failure_at = excluded.last_failure_at
-  `);
-  stmt.run(errorType, now, now);
-}
-
-export function resetCircuitBreaker(db: Database, errorType: string): void {
-  const stmt = db.prepare("DELETE FROM circuit_breaker WHERE error_type = ?");
-  stmt.run(errorType);
-}
-
-export function getTrippedBreakers(db: Database, threshold: number): CircuitBreakerRow[] {
-  const stmt = db.prepare(
-    "SELECT * FROM circuit_breaker WHERE consecutive_failures >= ? AND notified = 0"
-  );
-  return stmt.all(threshold) as CircuitBreakerRow[];
-}
-
-export function markBreakerNotified(db: Database, errorType: string): void {
-  const stmt = db.prepare("UPDATE circuit_breaker SET notified = 1 WHERE error_type = ?");
-  stmt.run(errorType);
-}

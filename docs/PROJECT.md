@@ -1,6 +1,6 @@
 # Mac Bid Analyzer
 
-A CLI tool that analyzes mac.bid auction items to determine their secondary market value and recommend maximum bid prices. Runs on a personal Ubuntu server via cron, pulling your mac.bid watchlist and cross-referencing eBay sold listings to find great deals.
+A CLI tool that analyzes mac.bid auction items to determine their secondary market value and recommend maximum bid prices. Cross-references eBay sold listings to find great deals.
 
 ## Problem
 
@@ -8,28 +8,24 @@ Mac.bid lists thousands of items daily at auction starting at $1. The challenge 
 
 ## Solution
 
-Two scripts behind a single CLI entrypoint:
+CLI commands behind a single entrypoint:
 
 1. **`mac-bid analyze <URL or lot ID>`** — Analyze a single item. Fetches product data from mac.bid, looks up sold comps on eBay, calculates a recommended max bid factoring in all fees/taxes/location costs, and stores the result in SQLite.
 
-2. **`mac-bid watchlist`** — Orchestration layer. Authenticates with mac.bid via Firebase, pulls your watchlist, runs the single-item analysis on any unanalyzed items, and updates live auction data (current bid, is_open) on all open items.
+2. **`mac-bid results`** — Query the database. Shows analyzed items with filtering options.
 
-3. **`mac-bid results`** — Query the database. Basic output for v1, future TUI planned.
+3. **`mac-bid detail <lotId>`** — Show full AI analysis for a specific item.
 
 ## Core Workflow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Cron (every 30 min)                                        │
-│  └─ mac-bid watchlist                                       │
-│      ├─ Firebase auth → GET /user/me → watchlist_full       │
-│      ├─ For each unanalyzed item:                           │
-│      │   ├─ eBay Browse API → sold comps by UPC             │
-│      │   ├─ Calculate max bid (fees + tax + location)       │
-│      │   └─ Store analysis in SQLite                        │
-│      └─ For each open item (already analyzed):              │
-│          ├─ GET /map-bid/ddb/lot/:id → current bid, status  │
-│          └─ Update SQLite with live data                    │
+│  mac-bid analyze <url or lot ID>                            │
+│      ├─ GET /map-bid/ddb/lot/:id → product data             │
+│      ├─ eBay Browse API → sold comps by UPC                 │
+│      ├─ Gemini LLM → advisory estimate (if <5 comps)        │
+│      ├─ Calculate max bid (fees + tax + location)            │
+│      └─ Store analysis in SQLite                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,13 +49,11 @@ See [PRICING.md](./PRICING.md) for full details.
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| Runtime | Bun | Built-in TypeScript, built-in SQLite, fast startup for cron |
+| Runtime | Bun | Built-in TypeScript, built-in SQLite, fast startup |
 | Language | TypeScript | Developer's primary language |
 | Database | SQLite (bun:sqlite) | Zero-dependency, single file, perfect for local CLI |
-| Mac.bid auth | Firebase Auth REST API | Stable Google service, email/password flow |
 | Price data | eBay Browse API (free tier) | Sold listings = real market data, UPC search |
 | LLM fallback | Gemini (free tier) | Advisory estimates when <5 eBay comps |
-| Notifications | Ntfy (self-hosted) | Circuit breaker alerts, free, self-hosted |
 
 ## Project Structure
 
@@ -67,24 +61,18 @@ See [PRICING.md](./PRICING.md) for full details.
 mac-bid-analyzer/
 ├── src/
 │   ├── cli.ts                # CLI entrypoint with subcommands
-│   ├── analyze-item.ts       # Single item analysis logic
-│   ├── analyze-watchlist.ts  # Watchlist orchestrator
-│   ├── lib/
-│   │   ├── macbid.ts         # Mac.bid REST API client
-│   │   ├── ebay.ts           # eBay Browse API client
-│   │   ├── firebase-auth.ts  # Firebase auth for watchlist access
-│   │   ├── gemini.ts         # Gemini LLM fallback client
-│   │   ├── pricing.ts        # Max bid calculation logic
-│   │   ├── db.ts             # SQLite schema and operations
-│   │   ├── notifications.ts  # Ntfy client for alerts
-│   │   └── errors.ts         # Circuit breaker / error tracking
-│   └── config.ts             # Config file loader + CLI flag merging
+│   ├── analyze.ts            # Single item analysis logic
+│   ├── config.ts             # Config file loader + CLI flag merging
+│   ├── db.ts                 # SQLite schema and operations
+│   ├── ebay.ts               # eBay Browse API client
+│   ├── gemini.ts             # Gemini LLM fallback client
+│   └── location.ts           # Location/building classification
 ├── docs/
 │   ├── PROJECT.md            # This file
 │   ├── MACBID-API.md         # Mac.bid API reference
 │   ├── PRICING.md            # Fee breakdown and bid formula
 │   ├── SCHEMA.md             # SQLite schema documentation
-│   ├── LLM-PROMPTS.md        # Prompts for manual review items
+│   ├── LLM-PROMPTS.md        # Prompts for Gemini fallback and manual condition review
 │   └── CONFIGURATION.md      # Config file and env var reference
 ├── config.json               # User preferences
 ├── .env                      # Credentials (gitignored)
@@ -100,15 +88,12 @@ mac-bid-analyzer/
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Watchlist source | Mac.bid's real watchlist via Firebase auth | Single source of truth, no manual sync |
 | eBay search strategy | UPC first, product name fallback for ASINs | Exact matches, zero noise |
 | Condition handling | Auto-recommend for NEW/LIKE NEW/OPEN BOX; flag USED/SALVAGE/DAMAGED as manual review | Avoid bad recommendations on ambiguous conditions |
 | Re-analysis policy | Never re-run (secondary market prices are stable); `--force` flag to override | Minimize API calls, respect rate limits |
-| Live data updates | Cron updates current_bid/is_open each run for open items | TUI stays a pure DB reader, no network needed |
 | Location filtering | Never skip items; apply cost tiers ($0/$10/$25) | Every item is a candidate if the deal is good enough |
 | Transfer buildings | Auto-derived from mac.bid /buildings API | Self-healing when transfer routes change |
-| Error handling | Fail per-item, circuit breaker at 5 consecutive same-error failures | Resilient cron job that self-reports when broken |
-| Typesense | Not used | All entry points are specific URLs or watchlist; no search needed |
+| Typesense | Not used | All entry points are specific URLs; no search needed |
 
 ## Input Formats
 

@@ -27,24 +27,15 @@ cp .env.example .env
 
 Create `config.json` with your location and pricing settings. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details.
 
-### 5. Set up cron (optional)
-
-Run the watchlist analyzer every 30 minutes:
-
-```bash
-crontab -e
-# Add: */30 * * * * cd /path/to/mac-bid-analyzer && bun run src/cli.ts watchlist >> /var/log/mac-bid.log 2>&1
-```
-
 ## Usage
 
 ```bash
 # Analyze a single item
 bun run src/cli.ts analyze <url or lot ID>
 
-# Analyze all watchlist items
-bun run src/cli.ts watchlist
-
 # Query results
 bun run src/cli.ts results
+
+# Show full detail for an item
+bun run src/cli.ts detail <lotId>
 ```

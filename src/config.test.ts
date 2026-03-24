@@ -20,7 +20,6 @@ describe("loadConfig", () => {
     expect(config.location_tiers.transfer.extra_cost).toBe(10);
     expect(config.location_tiers.remote.extra_cost).toBe(25);
     expect(config.manual_review_conditions).toEqual(["USED", "SALVAGE", "DAMAGED"]);
-    expect(config.circuit_breaker_threshold).toBe(5);
     rmSync(dir, { recursive: true });
   });
 
@@ -84,8 +83,9 @@ describe("loadConfig", () => {
   test("env values are loaded", () => {
     const dir = makeTempDir();
     const config = loadConfig([], dir);
-    // ntfyUrl defaults when env var not set
-    expect(config.env.ntfyUrl).toBe("http://192.168.68.53:2586/mac-bid-alerts");
+    expect(typeof config.env.ebayAppId).toBe("string");
+    expect(typeof config.env.ebayAppSecret).toBe("string");
+    expect(typeof config.env.geminiApiKey).toBe("string");
     rmSync(dir, { recursive: true });
   });
 });

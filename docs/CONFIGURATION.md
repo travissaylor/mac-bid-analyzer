@@ -5,19 +5,12 @@
 ## Environment Variables (`.env`)
 
 ```bash
-# Mac.bid credentials (Firebase auth)
-MACBID_EMAIL=your@email.com
-MACBID_PASSWORD=yourpassword
-
 # eBay Browse API
 EBAY_APP_ID=your-app-id
 EBAY_APP_SECRET=your-app-secret
 
 # Gemini (LLM fallback - free tier)
 GEMINI_API_KEY=your-gemini-key
-
-# Ntfy (self-hosted, circuit breaker alerts)
-NTFY_URL=http://localhost:2586/mac-bid-alerts
 ```
 
 ## Config File (`config.json`)
@@ -37,8 +30,7 @@ NTFY_URL=http://localhost:2586/mac-bid-alerts
       "extra_cost": 25
     }
   },
-  "manual_review_conditions": ["USED", "SALVAGE", "DAMAGED"],
-  "circuit_breaker_threshold": 5
+  "manual_review_conditions": ["USED", "SALVAGE", "DAMAGED"]
 }
 ```
 
@@ -54,7 +46,6 @@ NTFY_URL=http://localhost:2586/mac-bid-alerts
 | `location_tiers.transfer.extra_cost` | number | `10` | Cost added for items at transfer-eligible buildings. |
 | `location_tiers.remote.extra_cost` | number | `25` | Cost added for items at non-transfer buildings. |
 | `manual_review_conditions` | string[] | `["USED", "SALVAGE", "DAMAGED"]` | Conditions that skip auto-recommendation and flag for manual review. |
-| `circuit_breaker_threshold` | number | `5` | Number of consecutive same-error failures before alerting via Ntfy and halting. |
 
 ## CLI Flags
 
@@ -65,13 +56,6 @@ NTFY_URL=http://localhost:2586/mac-bid-alerts
 | `<input>` | Mac.bid URL or lot ID (required) | `https://mac.bid/auction/76563/lot/3194Q` or `52217488` |
 | `--force` | Re-analyze even if already in DB | `mac-bid analyze 52217488 --force` |
 | `--threshold <n>` | Override discount threshold for this run | `mac-bid analyze 52217488 --threshold 0.40` |
-
-### `mac-bid watchlist`
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--force` | Re-analyze all items, not just new ones | `mac-bid watchlist --force` |
-| `--dry-run` | Show what would be analyzed without doing it | `mac-bid watchlist --dry-run` |
 
 ### `mac-bid results`
 
@@ -96,7 +80,7 @@ The `analyze` command accepts these formats:
 
 - **Bun >= 1.0** — Install via `curl -fsSL https://bun.sh/install | bash`
 
-## Server Setup
+## Setup
 
 ```bash
 # Install Bun
@@ -111,18 +95,3 @@ cp .env.example .env
 # Edit .env with your credentials
 # Edit config.json with your building IDs
 ```
-
-## Cron Setup
-
-```bash
-# Run watchlist analysis every 30 minutes
-*/30 * * * * cd /path/to/mac-bid-analyzer && bun run src/cli.ts watchlist >> /var/log/mac-bid-analyzer.log 2>&1
-```
-
-## Firebase Token Caching
-
-The Firebase refresh token is cached to avoid re-authenticating on every run. Stored in a local file (e.g., `.firebase-token`) that is gitignored. The token refresh flow:
-
-1. On first run: sign in with email/password, save refresh token
-2. On subsequent runs: use refresh token to get a new ID token (~1 second, no password needed)
-3. If refresh token expires (rare): fall back to full email/password sign-in

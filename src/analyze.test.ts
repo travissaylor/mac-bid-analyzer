@@ -39,15 +39,11 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       remote: { extra_cost: 25 },
     },
     manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-    circuit_breaker_threshold: 5,
     gemini_model: "gemini-2.5-flash",
     env: {
-      macbidEmail: "",
-      macbidPassword: "",
       ebayAppId: "test-app-id",
       ebayAppSecret: "test-secret",
       geminiApiKey: "",
-      ntfyUrl: "",
     },
     cli: {},
     ...overrides,
@@ -372,13 +368,10 @@ describe("analyze", () => {
       });
       const config = makeConfig({
         env: {
-          macbidEmail: "",
-          macbidPassword: "",
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
-          ntfyUrl: "",
-        },
+            },
       });
       const origCwd = process.cwd;
       process.cwd = () => tmpDir;
@@ -401,13 +394,10 @@ describe("analyze", () => {
       setupMocks();
       const config = makeConfig({
         env: {
-          macbidEmail: "",
-          macbidPassword: "",
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
-          ntfyUrl: "",
-        },
+            },
       });
       const origCwd = process.cwd;
       process.cwd = () => tmpDir;
@@ -463,13 +453,10 @@ describe("analyze", () => {
       });
       const config = makeConfig({
         env: {
-          macbidEmail: "",
-          macbidPassword: "",
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
-          ntfyUrl: "",
-        },
+            },
       });
       const origCwd = process.cwd;
       process.cwd = () => tmpDir;
@@ -500,13 +487,10 @@ describe("analyze", () => {
       });
       const config = makeConfig({
         env: {
-          macbidEmail: "",
-          macbidPassword: "",
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
-          ntfyUrl: "",
-        },
+            },
       });
       const origCwd = process.cwd;
       process.cwd = () => tmpDir;

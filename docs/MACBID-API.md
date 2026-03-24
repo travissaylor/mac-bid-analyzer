@@ -14,117 +14,9 @@ All endpoints discovered by intercepting network traffic from the mac.bid fronte
 
 ### Public Endpoints (no auth required)
 
-All read-only auction/location/building endpoints are public. No headers, tokens, or cookies needed.
-
-### Authenticated Endpoints (Firebase ID token required)
-
-User-specific endpoints (watchlist, user profile) require a Firebase ID token passed as an `Authorization` header.
-
-**Firebase project config:**
-- API Key: `AIzaSyDjWLdT_94-6VCQWuRdNUrYI-50M_3XLPs`
-- Auth method: Email/password sign-in
-
-**Auth flow:**
-1. Sign in via Firebase Auth REST API: `POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}`
-2. Request body: `{ "email": "...", "password": "...", "returnSecureToken": true }`
-3. Response includes `idToken` (expires ~1 hour) and `refreshToken` (long-lived)
-4. Pass `idToken` as `Authorization` header on authenticated requests
-5. Refresh via: `POST https://securetoken.googleapis.com/v1/token?key={API_KEY}` with `{ "grant_type": "refresh_token", "refresh_token": "..." }`
+All read-only auction/location/building endpoints are public. No headers, tokens, or cookies needed. This tool only uses public endpoints.
 
 ## Endpoints Used by This Tool
-
-### GET /user/me
-
-**Auth required.** Returns the authenticated user's profile, including the full watchlist.
-
-**Headers:**
-```
-Authorization: {firebase_id_token}
-Content-Type: application/json
-```
-
-**Response includes:**
-```json
-{
-  "user_id": 12345,
-  "email": "user@example.com",
-  "watchlist_full": [
-    {
-      "id": 52217488,
-      "auction_id": 76563,
-      "lot_number": "3194Q",
-      "product_name": "TearPlex MacBook Pro Charger",
-      "upc": "B08RYXFQDT",
-      "condition_name": "OPEN BOX",
-      "retail_price": 28.99,
-      "category": "Computers",
-      "image_url": "https://media.mac.bid/products/...",
-      "expected_close_date": "2026-03-22T23:13:33.000Z",
-      "is_open": 1,
-      "is_transferrable": 1,
-      "current_location_id": 24,
-      "building_id": 14,
-      "description": "...",
-      "dimensions": "..."
-    }
-  ]
-}
-```
-
-The combined user fetch also hits these in parallel (same auth):
-- `GET /payments/{userId}/customer-purchase-summary`
-- `GET /auctions/customer/{userId}/active-auctions`
-- `GET /auctions/customer/{userId}/auction-alerts`
-
-For this tool, we only need the basic `GET /user/me` call.
-
-### GET /auctions/:id?getItems=1
-
-**Public.** Returns a single auction with all its items.
-
-**Key item fields:**
-```json
-{
-  "id": 52112834,
-  "auction_id": 76468,
-  "expected_close_date": "2026-03-19T19:24:55.000Z",
-  "lot_number": "2491P",
-  "is_open": 1,
-  "is_transferrable": 1,
-  "total_bids": 0,
-  "winning_bid_amount": null,
-  "unique_bidders": 0,
-  "title": "smiry Memory Foam Bath Mat",
-  "product_name": "smiry Memory Foam Bath Mat",
-  "upc": "B09JP9GFCC",
-  "description": "...",
-  "dimensions": "47\"L x 24\"W",
-  "quantity": 1,
-  "retail_price": 28.99,
-  "condition_name": "OPEN BOX",
-  "category": "Rugs",
-  "image_url": "https://media.mac.bid/products/...",
-  "current_location_id": 24,
-  "building_id": 14
-}
-```
-
-### GET /lot/:lotId
-
-**Public.** Returns a single lot by its numeric ID.
-
-```json
-{
-  "id": 52217488,
-  "auction_id": 76563,
-  "lot_number": "3194Q",
-  "product_name": "...",
-  "upc": "...",
-  "condition_name": "OPEN BOX",
-  "retail_price": 28.99,
-  ...
-}
-```
 
 ### GET /map-bid/ddb/lot/:lotId
 
@@ -149,7 +41,7 @@ For this tool, we only need the basic `GET /user/me` call.
 }
 ```
 
-**Use case:** Updating current bid and open/closed status on each cron run.
+**Use case:** Fetching product data and current bid/open status.
 
 ### GET /buildings
 
@@ -193,16 +85,14 @@ For this tool, we only need the basic `GET /user/me` call.
 | Endpoint | Why not |
 |----------|---------|
 | `GET /auctions` | Returns all active auctions (~1.2MB). Too broad; we fetch specific items. |
-| `POST /multi_search` (Typesense) | Search not needed — entry points are specific URLs or watchlist. |
-| `GET /turbo-clock-auctions` | Turbo auctions may appear on watchlist; handled via lot ID lookup. |
+| `POST /multi_search` (Typesense) | Search not needed — entry points are specific URLs. |
+| `GET /turbo-clock-auctions` | Turbo auctions handled via lot ID lookup. |
 | `GET /firebase-token` | For real-time bid updates via Firebase. We poll DynamoDB instead. |
-| `POST /user/{id}/watchlist` | Adding to watchlist. Read-only for this tool. |
-| `DELETE /user/{id}/watchlist/{lotId}` | Removing from watchlist. Read-only for this tool. |
+| `GET /user/me` | Watchlist access (requires Firebase auth). No longer used. |
 
 ## Rate Limiting
 
 No explicit rate limiting observed. Recommended practices:
-- Watchlist polling: every 30 minutes via cron
 - Per-item DynamoDB lookups are lightweight
 - `/buildings` can be cached for hours (rarely changes)
 - Use exponential backoff on failures
@@ -211,7 +101,6 @@ No explicit rate limiting observed. Recommended practices:
 
 | Component | Risk | Mitigation |
 |-----------|------|------------|
-| REST API paths | Medium — undocumented, could change | Circuit breaker alerts via Ntfy |
+| REST API paths | Medium — undocumented, could change | Validate expected fields, fail gracefully |
 | Response shapes | Medium — fields could be renamed/removed | Validate expected fields, fail gracefully per item |
-| Firebase auth | Low — Google-maintained service | Standard, well-documented auth flow |
 | DynamoDB lot endpoint | Low — core to their bidding system | Unlikely to change without breaking their own frontend |

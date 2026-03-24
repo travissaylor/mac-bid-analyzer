@@ -14,7 +14,6 @@ export interface ConfigFile {
   min_ebay_comps: number;
   location_tiers: LocationTiers;
   manual_review_conditions: string[];
-  circuit_breaker_threshold: number;
   gemini_model: string;
 }
 
@@ -26,12 +25,9 @@ export interface CliOverrides {
 
 export interface AppConfig extends ConfigFile {
   env: {
-    macbidEmail: string;
-    macbidPassword: string;
     ebayAppId: string;
     ebayAppSecret: string;
     geminiApiKey: string;
-    ntfyUrl: string;
   };
   cli: CliOverrides;
 }
@@ -47,7 +43,6 @@ const DEFAULTS: ConfigFile = {
     remote: { extra_cost: 25 },
   },
   manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-  circuit_breaker_threshold: 5,
   gemini_model: "gemini-3.1-flash-lite-preview",
 };
 
@@ -91,10 +86,6 @@ function validateConfig(config: ConfigFile): string[] {
     errors.push("manual_review_conditions must be an array of strings");
   } else if (config.manual_review_conditions.some((c) => typeof c !== "string")) {
     errors.push("manual_review_conditions must contain only strings");
-  }
-
-  if (typeof config.circuit_breaker_threshold !== "number" || !Number.isInteger(config.circuit_breaker_threshold) || config.circuit_breaker_threshold < 1) {
-    errors.push("circuit_breaker_threshold must be a positive integer");
   }
 
   if (typeof config.gemini_model !== "string" || config.gemini_model.length === 0) {
@@ -143,8 +134,6 @@ function loadConfigFile(configPath: string): ConfigFile {
     },
     manual_review_conditions:
       (parsed.manual_review_conditions as string[] | undefined) ?? DEFAULTS.manual_review_conditions,
-    circuit_breaker_threshold:
-      (parsed.circuit_breaker_threshold as number | undefined) ?? DEFAULTS.circuit_breaker_threshold,
     gemini_model: (parsed.gemini_model as string | undefined) ?? DEFAULTS.gemini_model,
   };
 
@@ -154,12 +143,9 @@ function loadConfigFile(configPath: string): ConfigFile {
 function loadEnv(): AppConfig["env"] {
   const get = (key: string): string => Bun.env[key] ?? "";
   return {
-    macbidEmail: get("MACBID_EMAIL"),
-    macbidPassword: get("MACBID_PASSWORD"),
     ebayAppId: get("EBAY_APP_ID"),
     ebayAppSecret: get("EBAY_APP_SECRET"),
     geminiApiKey: get("GEMINI_API_KEY"),
-    ntfyUrl: get("NTFY_URL") || "http://localhost:2586/mac-bid-alerts",
   };
 }
 

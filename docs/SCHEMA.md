@@ -29,7 +29,7 @@ CREATE TABLE analyzed_items (
   auction_location  TEXT,
   expected_close_date TEXT,
 
-  -- Live data (updated each cron run for open items)
+  -- Live data (updated on demand for open items)
   is_open           INTEGER NOT NULL DEFAULT 1,
   current_bid       REAL DEFAULT 0,
   total_bids        INTEGER DEFAULT 0,
@@ -60,35 +60,7 @@ CREATE TABLE analyzed_items (
 
   -- Metadata
   analyzed_at       TEXT NOT NULL,
-  analysis_source   TEXT NOT NULL  -- 'ebay', 'llm', 'none'
-);
-```
-
-### error_log
-
-Tracks errors for the circuit breaker.
-
-```sql
-CREATE TABLE error_log (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  error_type      TEXT NOT NULL,
-  error_message   TEXT NOT NULL,
-  lot_id          INTEGER,
-  occurred_at     TEXT NOT NULL
-);
-```
-
-### circuit_breaker
-
-Tracks consecutive failures by error type.
-
-```sql
-CREATE TABLE circuit_breaker (
-  error_type          TEXT PRIMARY KEY,
-  consecutive_failures INTEGER NOT NULL DEFAULT 0,
-  first_failure_at    TEXT NOT NULL,
-  last_failure_at     TEXT NOT NULL,
-  notified            INTEGER NOT NULL DEFAULT 0
+  analysis_source   TEXT NOT NULL  -- 'ebay', 'ai', 'blended', 'none', 'manual_review'
 );
 ```
 
@@ -121,7 +93,7 @@ WHERE is_open = 1
 ORDER BY expected_close_date ASC;
 ```
 
-### Items not yet analyzed (for watchlist orchestrator)
+### Check if item already analyzed
 
 ```sql
 SELECT lot_id FROM analyzed_items WHERE lot_id = ?;
@@ -134,17 +106,9 @@ SELECT lot_id FROM analyzed_items WHERE lot_id = ?;
 SELECT lot_id FROM analyzed_items WHERE is_open = 1;
 ```
 
-### Check circuit breaker
-
-```sql
-SELECT * FROM circuit_breaker
-WHERE consecutive_failures >= 5
-  AND notified = 0;
-```
-
 ## Deal Score Calculation
 
-`deal_score` quantifies how good a deal is, for sorting in the future TUI.
+`deal_score` quantifies how good a deal is, for sorting.
 
 ```
 deal_score = (recommended_max_bid - current_bid) / recommended_max_bid * 100
@@ -164,5 +128,4 @@ CREATE INDEX idx_analyzed_items_auction_id ON analyzed_items(auction_id);
 CREATE INDEX idx_analyzed_items_category ON analyzed_items(category);
 CREATE INDEX idx_analyzed_items_condition ON analyzed_items(condition);
 CREATE INDEX idx_analyzed_items_deal_score ON analyzed_items(deal_score);
-CREATE INDEX idx_error_log_type_time ON error_log(error_type, occurred_at);
 ```

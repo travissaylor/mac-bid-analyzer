@@ -9,13 +9,8 @@ import {
   getItemByLotId,
   getOpenItems,
   updateLiveData,
-  logError,
-  recordCircuitBreakerFailure,
-  resetCircuitBreaker,
-  getTrippedBreakers,
-  markBreakerNotified,
 } from "./db";
-import type { AnalyzedItem, CircuitBreakerRow } from "./db";
+import type { AnalyzedItem } from "./db";
 
 function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
   return {
@@ -88,8 +83,6 @@ describe("openDatabase", () => {
       .all() as { name: string }[];
     const tableNames = tables.map((t) => t.name);
     expect(tableNames).toContain("analyzed_items");
-    expect(tableNames).toContain("error_log");
-    expect(tableNames).toContain("circuit_breaker");
   });
 
   test("creates indexes", () => {
@@ -102,7 +95,6 @@ describe("openDatabase", () => {
     expect(indexNames).toContain("idx_analyzed_items_category");
     expect(indexNames).toContain("idx_analyzed_items_condition");
     expect(indexNames).toContain("idx_analyzed_items_deal_score");
-    expect(indexNames).toContain("idx_error_log_type_time");
   });
 });
 
@@ -170,49 +162,3 @@ describe("updateLiveData", () => {
   });
 });
 
-describe("logError", () => {
-  test("inserts error log entry", () => {
-    logError(db, { error_type: "MACBID_API", error_message: "404 Not Found", lot_id: 123 });
-    const rows = db.prepare("SELECT * FROM error_log").all() as Array<{
-      error_type: string;
-      error_message: string;
-      lot_id: number;
-      occurred_at: string;
-    }>;
-    expect(rows.length).toBe(1);
-    expect(rows[0].error_type).toBe("MACBID_API");
-    expect(rows[0].lot_id).toBe(123);
-    expect(rows[0].occurred_at).toBeTruthy();
-  });
-});
-
-describe("circuit breaker", () => {
-  test("records failures and increments count", () => {
-    recordCircuitBreakerFailure(db, "EBAY_API");
-    recordCircuitBreakerFailure(db, "EBAY_API");
-    recordCircuitBreakerFailure(db, "EBAY_API");
-    const row = db.prepare("SELECT * FROM circuit_breaker WHERE error_type = ?").get("EBAY_API") as CircuitBreakerRow;
-    expect(row.consecutive_failures).toBe(3);
-  });
-
-  test("getTrippedBreakers returns breakers at threshold", () => {
-    for (let i = 0; i < 5; i++) recordCircuitBreakerFailure(db, "MACBID_API");
-    const tripped = getTrippedBreakers(db, 5);
-    expect(tripped.length).toBe(1);
-    expect(tripped[0].error_type).toBe("MACBID_API");
-  });
-
-  test("getTrippedBreakers excludes already-notified", () => {
-    for (let i = 0; i < 5; i++) recordCircuitBreakerFailure(db, "MACBID_API");
-    markBreakerNotified(db, "MACBID_API");
-    const tripped = getTrippedBreakers(db, 5);
-    expect(tripped.length).toBe(0);
-  });
-
-  test("resetCircuitBreaker removes the entry", () => {
-    recordCircuitBreakerFailure(db, "EBAY_API");
-    resetCircuitBreaker(db, "EBAY_API");
-    const row = db.prepare("SELECT * FROM circuit_breaker WHERE error_type = ?").get("EBAY_API");
-    expect(row).toBeNull();
-  });
-});

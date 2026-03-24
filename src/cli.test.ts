@@ -85,11 +85,6 @@ describe("parseArgs", () => {
     expect(result.flags.help).toBe(true);
   });
 
-  test("watchlist subcommand", () => {
-    const result = parseArgs(["watchlist"]);
-    expect(result.subcommand).toBe("watchlist");
-  });
-
   test("results subcommand", () => {
     const result = parseArgs(["results"]);
     expect(result.subcommand).toBe("results");
@@ -114,12 +109,12 @@ describe("parseArgs", () => {
   });
 
   test("--force flag", () => {
-    const result = parseArgs(["watchlist", "--force"]);
+    const result = parseArgs(["analyze", "12345", "--force"]);
     expect(result.flags.force).toBe(true);
   });
 
   test("--dry-run flag", () => {
-    const result = parseArgs(["watchlist", "--dry-run"]);
+    const result = parseArgs(["analyze", "12345", "--dry-run"]);
     expect(result.flags.dryRun).toBe(true);
   });
 
@@ -143,12 +138,12 @@ describe("parseArgs", () => {
   });
 
   test("unknown option throws", () => {
-    expect(() => parseArgs(["watchlist", "--unknown"])).toThrow("Unknown option: --unknown");
+    expect(() => parseArgs(["analyze", "12345", "--unknown"])).toThrow("Unknown option: --unknown");
   });
 
   test("multiple flags combined", () => {
-    const result = parseArgs(["watchlist", "--force", "--dry-run", "--threshold", "0.4"]);
-    expect(result.subcommand).toBe("watchlist");
+    const result = parseArgs(["analyze", "12345", "--force", "--dry-run", "--threshold", "0.4"]);
+    expect(result.subcommand).toBe("analyze");
     expect(result.flags.force).toBe(true);
     expect(result.flags.dryRun).toBe(true);
     expect(result.flags.threshold).toBe(0.4);
