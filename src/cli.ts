@@ -31,6 +31,7 @@ function printUsage(): void {
   console.log("  --help               Show help for a subcommand");
   console.log("  --force              Re-analyze items that already exist in the DB");
   console.log("  --threshold <0-1>    Override discount threshold (e.g. 0.3)");
+  console.log("  --model <p/m>        Override LLM provider/model (e.g. gemini/gemini-2.5-flash)");
   console.log("  --dry-run            Run without writing to the database");
 }
 
@@ -48,6 +49,7 @@ function printAnalyzeHelp(): void {
   console.log("Options:");
   console.log("  --force              Re-analyze even if item exists in DB");
   console.log("  --threshold <0-1>    Override discount threshold");
+  console.log("  --model <p/m>        Override LLM provider/model (e.g. gemini/gemini-2.5-flash)");
   console.log("  --dry-run            Run without writing to the database");
 }
 
@@ -122,6 +124,9 @@ export function parseArgs(args: string[]): ParsedCommand {
       flags.deals = true;
     } else if (arg === "--review") {
       flags.review = true;
+    } else if (arg === "--model") {
+      // Consumed by parseCliOverrides in config.ts, skip the value
+      i++;
     } else if (arg.startsWith("--")) {
       throw new Error(`Unknown option: ${arg}`);
     } else {

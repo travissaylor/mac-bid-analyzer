@@ -173,4 +173,24 @@ describe("parseCliOverrides", () => {
     expect(result.dryRun).toBe(true);
     expect(result.threshold).toBe(0.25);
   });
+
+  test("parses --model flag", () => {
+    const result = parseCliOverrides(["--model", "gemini/gemini-2.5-flash"]);
+    expect(result.model).toBe("gemini/gemini-2.5-flash");
+  });
+
+  test("throws when --model has no value", () => {
+    expect(() => parseCliOverrides(["--model"])).toThrow("--model requires a provider/model value");
+  });
+
+  test("throws when --model value is missing slash", () => {
+    expect(() => parseCliOverrides(["--model", "gpt-4o-mini"])).toThrow('provider/model-name" format');
+  });
+
+  test("--model overrides config llm_model", () => {
+    const dir = makeTempDir();
+    const config = loadConfig(["--model", "gemini/gemini-2.5-flash"], dir);
+    expect(config.llm_model).toBe("gemini/gemini-2.5-flash");
+    rmSync(dir, { recursive: true });
+  });
 });

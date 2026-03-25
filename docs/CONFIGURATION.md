@@ -61,6 +61,7 @@ GEMINI_API_KEY=your-gemini-key
 | `<input>` | Mac.bid URL or lot ID (required) | `https://mac.bid/auction/76563/lot/3194Q` or `52217488` |
 | `--force` | Re-analyze even if already in DB | `mac-bid analyze 52217488 --force` |
 | `--threshold <n>` | Override discount threshold for this run | `mac-bid analyze 52217488 --threshold 0.40` |
+| `--model <p/m>` | Override LLM provider/model for this run | `mac-bid analyze 52217488 --model gemini/gemini-2.5-flash` |
 
 ### `mac-bid results`
 

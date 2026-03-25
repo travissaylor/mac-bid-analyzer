@@ -21,6 +21,7 @@ export interface CliOverrides {
   force?: boolean;
   threshold?: number;
   dryRun?: boolean;
+  model?: string;
 }
 
 export interface AppConfig extends ConfigFile {
@@ -190,6 +191,16 @@ export function parseCliOverrides(args: string[]): CliOverrides {
       }
       overrides.threshold = val;
       i++;
+    } else if (arg === "--model") {
+      const next = args[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error("--model requires a provider/model value (e.g. openai/gpt-4o-mini)");
+      }
+      if (!/^[a-z]+\/.+$/.test(next)) {
+        throw new Error('--model must be in "provider/model-name" format (e.g. "openai/gpt-4o-mini")');
+      }
+      overrides.model = next;
+      i++;
     }
   }
 
@@ -206,6 +217,11 @@ export function loadConfig(cliArgs: string[] = [], projectRoot?: string): AppCon
   // CLI --threshold overrides config file discount_threshold
   if (cli.threshold !== undefined) {
     fileConfig.discount_threshold = cli.threshold;
+  }
+
+  // CLI --model overrides config file llm_model
+  if (cli.model !== undefined) {
+    fileConfig.llm_model = cli.model;
   }
 
   const errors = validateConfig(fileConfig);
