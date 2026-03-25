@@ -7,6 +7,7 @@ import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
 import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
+import { exportFixtures } from "./eval/export";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -26,6 +27,7 @@ function printUsage(): void {
   console.log("  results              Query and display stored analysis results");
   console.log("  detail <lotId>       Show full AI analysis for a specific item");
   console.log("  telegram             Start the Telegram bot in long-polling mode");
+  console.log("  eval export          Export analyzed items as JSONL fixture file for evals");
   console.log("");
   console.log("Global options:");
   console.log("  --help               Show help for a subcommand");
@@ -61,6 +63,16 @@ function printDetailHelp(): void {
   console.log("and eBay data side-by-side.");
 }
 
+function printEvalHelp(): void {
+  console.log(`${timestamp()} Usage: bun run src/cli.ts eval <subcommand> [options]`);
+  console.log("");
+  console.log("Eval subcommands:");
+  console.log("  export               Export analyzed items as JSONL fixture file");
+  console.log("");
+  console.log("Export options:");
+  console.log("  --output <path>      Output file path (default: evals/fixtures.jsonl)");
+}
+
 function printResultsHelp(): void {
   console.log(`${timestamp()} Usage: bun run src/cli.ts results [options]`);
   console.log("");
@@ -73,8 +85,9 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "results" | "detail" | "telegram" | "help";
+  subcommand: "analyze" | "results" | "detail" | "telegram" | "eval" | "help";
   input?: string;
+  evalSubcommand?: "export" | "run";
   flags: {
     help: boolean;
     force: boolean;
@@ -83,6 +96,7 @@ export interface ParsedCommand {
     open: boolean;
     deals: boolean;
     review: boolean;
+    output?: string;
   };
 }
 
@@ -95,6 +109,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     open: false,
     deals: false,
     review: false,
+    output: undefined as string | undefined,
   };
 
   const positional: string[] = [];
@@ -124,6 +139,13 @@ export function parseArgs(args: string[]): ParsedCommand {
       flags.deals = true;
     } else if (arg === "--review") {
       flags.review = true;
+    } else if (arg === "--output") {
+      const next = args[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error("--output requires a file path");
+      }
+      flags.output = next;
+      i++;
     } else if (arg === "--model") {
       // Consumed by parseCliOverrides in config.ts, skip the value
       i++;
@@ -140,8 +162,20 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram") {
+  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram" && subcommand !== "eval") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
+  }
+
+  if (subcommand === "eval") {
+    const evalSub = positional[1];
+    if (evalSub && evalSub !== "export" && evalSub !== "run") {
+      throw new Error(`Unknown eval subcommand: ${evalSub}. Expected 'export' or 'run'.`);
+    }
+    return {
+      subcommand: "eval",
+      evalSubcommand: (evalSub as "export" | "run" | undefined),
+      flags,
+    };
   }
 
   const input = (subcommand === "analyze" || subcommand === "detail") ? positional[1] : undefined;
@@ -252,6 +286,8 @@ async function main(): Promise<void> {
       printResultsHelp();
     } else if (parsed.subcommand === "detail") {
       printDetailHelp();
+    } else if (parsed.subcommand === "eval") {
+      printEvalHelp();
     } else {
       printUsage();
     }
@@ -292,6 +328,22 @@ async function main(): Promise<void> {
   if (parsed.subcommand === "telegram") {
     startTelegramBot();
     return; // bot runs until killed
+  }
+
+  if (parsed.subcommand === "eval") {
+    if (parsed.evalSubcommand === "export") {
+      try {
+        const outputPath = parsed.flags.output ?? "evals/fixtures.jsonl";
+        await exportFixtures(outputPath);
+        process.exit(0);
+      } catch (err) {
+        log(`Error: ${(err as Error).message}`);
+        process.exit(1);
+      }
+    } else {
+      log("Usage: bun run src/cli.ts eval <export|run>");
+      process.exit(1);
+    }
   }
 
   if (parsed.subcommand === "results") {

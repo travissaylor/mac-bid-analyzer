@@ -164,6 +164,33 @@ describe("parseArgs", () => {
     expect(result.subcommand).toBe("detail");
     expect(result.flags.help).toBe(true);
   });
+
+  test("eval export subcommand", () => {
+    const result = parseArgs(["eval", "export"]);
+    expect(result.subcommand).toBe("eval");
+    expect(result.evalSubcommand).toBe("export");
+  });
+
+  test("eval export with --output flag", () => {
+    const result = parseArgs(["eval", "export", "--output", "my/fixtures.jsonl"]);
+    expect(result.subcommand).toBe("eval");
+    expect(result.evalSubcommand).toBe("export");
+    expect(result.flags.output).toBe("my/fixtures.jsonl");
+  });
+
+  test("eval without subcommand", () => {
+    const result = parseArgs(["eval"]);
+    expect(result.subcommand).toBe("eval");
+    expect(result.evalSubcommand).toBeUndefined();
+  });
+
+  test("eval with unknown subcommand throws", () => {
+    expect(() => parseArgs(["eval", "foobar"])).toThrow("Unknown eval subcommand: foobar");
+  });
+
+  test("--output without value throws", () => {
+    expect(() => parseArgs(["eval", "export", "--output"])).toThrow("--output requires a file path");
+  });
 });
 
 describe("printAnalysisSummary", () => {
