@@ -8,6 +8,7 @@ import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
 import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
 import { exportFixtures } from "./eval/export";
+import { runEval, saveReport, printSummaryTable } from "./eval/runner";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -68,9 +69,14 @@ function printEvalHelp(): void {
   console.log("");
   console.log("Eval subcommands:");
   console.log("  export               Export analyzed items as JSONL fixture file");
+  console.log("  run                  Run eval across multiple models");
   console.log("");
   console.log("Export options:");
   console.log("  --output <path>      Output file path (default: evals/fixtures.jsonl)");
+  console.log("");
+  console.log("Run options:");
+  console.log("  --fixtures <path>    Fixture file path (default: evals/fixtures.jsonl)");
+  console.log("  --models <m1,m2>     Comma-separated models in provider/model format");
 }
 
 function printResultsHelp(): void {
@@ -97,6 +103,8 @@ export interface ParsedCommand {
     deals: boolean;
     review: boolean;
     output?: string;
+    fixtures?: string;
+    models?: string;
   };
 }
 
@@ -110,6 +118,8 @@ export function parseArgs(args: string[]): ParsedCommand {
     deals: false,
     review: false,
     output: undefined as string | undefined,
+    fixtures: undefined as string | undefined,
+    models: undefined as string | undefined,
   };
 
   const positional: string[] = [];
@@ -145,6 +155,20 @@ export function parseArgs(args: string[]): ParsedCommand {
         throw new Error("--output requires a file path");
       }
       flags.output = next;
+      i++;
+    } else if (arg === "--fixtures") {
+      const next = args[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error("--fixtures requires a file path");
+      }
+      flags.fixtures = next;
+      i++;
+    } else if (arg === "--models") {
+      const next = args[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error("--models requires a comma-separated list of models");
+      }
+      flags.models = next;
       i++;
     } else if (arg === "--model") {
       // Consumed by parseCliOverrides in config.ts, skip the value
@@ -335,6 +359,45 @@ async function main(): Promise<void> {
       try {
         const outputPath = parsed.flags.output ?? "evals/fixtures.jsonl";
         await exportFixtures(outputPath);
+        process.exit(0);
+      } catch (err) {
+        log(`Error: ${(err as Error).message}`);
+        process.exit(1);
+      }
+    } else if (parsed.evalSubcommand === "run") {
+      try {
+        const fixturePath = parsed.flags.fixtures ?? "evals/fixtures.jsonl";
+        if (!parsed.flags.models) {
+          log("Error: --models is required (e.g. --models gemini/gemini-2.5-flash,openai/gpt-4o-mini)");
+          process.exit(1);
+        }
+        const modelsList = parsed.flags.models.split(",").map((m) => m.trim()).filter(Boolean);
+        if (modelsList.length === 0) {
+          log("Error: --models requires at least one model");
+          process.exit(1);
+        }
+
+        // Validate model strings before loading config
+        for (const m of modelsList) {
+          if (!m.includes("/")) {
+            log(`Error: Invalid model string "${m}" — expected "provider/model-name" format`);
+            process.exit(1);
+          }
+        }
+
+        const config = loadConfig(args);
+        const report = await runEval({
+          fixturePath,
+          models: modelsList,
+          env: config.env,
+        });
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const outputPath = `evals/results/${timestamp}.json`;
+        await saveReport(report, outputPath);
+        log(`Report saved to ${outputPath}`);
+
+        printSummaryTable(report);
         process.exit(0);
       } catch (err) {
         log(`Error: ${(err as Error).message}`);
