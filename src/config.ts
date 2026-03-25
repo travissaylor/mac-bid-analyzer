@@ -45,7 +45,7 @@ const DEFAULTS: ConfigFile = {
     remote: { extra_cost: 25 },
   },
   manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-  llm_model: "openai/gpt-4o-mini",
+  llm_model: "gemini/gemini-3.1-flash-lite-preview",
 };
 
 function validateConfig(config: ConfigFile): string[] {
