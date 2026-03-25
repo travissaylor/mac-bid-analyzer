@@ -511,6 +511,148 @@ describe("analyze", () => {
       }
     });
 
+    it("should pass eBay sold data to LLM when available", async () => {
+      let capturedBody: string | null = null;
+      const lotData = {
+        id: 12345,
+        auction_id: 100,
+        lot_number: "42",
+        product_name: "Ninja Blender NJ600",
+        upc: "012345678901",
+        condition: "OPEN BOX",
+        retail_price: 79.99,
+        building_id: 15,
+        current_bid: 5.00,
+        is_open: true,
+        total_bids: 3,
+        watchers_count: 7,
+      };
+      const buildings = [
+        { id: 15, name: "Robinson", sales_tax: 0.06, transfer_destinations: "20,21" },
+      ];
+      const ebayItems = [
+        { price: { value: "50.00" } },
+        { price: { value: "55.00" } },
+        { price: { value: "52.00" } },
+        { price: { value: "58.00" } },
+        { price: { value: "60.00" } },
+      ];
+
+      mockFetch(async (url, init) => {
+        if (url.includes("/map-bid/ddb/lot/")) {
+          return new Response(JSON.stringify(lotData));
+        }
+        if (url.includes("/buildings")) {
+          return new Response(JSON.stringify(buildings));
+        }
+        if (url.includes("oauth2/token")) {
+          return new Response(JSON.stringify({ access_token: "test-token", expires_in: 7200 }));
+        }
+        if (url.includes("buy/browse")) {
+          return new Response(JSON.stringify({ total: ebayItems.length, itemSummaries: ebayItems }));
+        }
+        if (url.includes("generativelanguage.googleapis.com")) {
+          capturedBody = typeof init?.body === "string" ? init.body : null;
+          return new Response(JSON.stringify({
+            candidates: [{
+              content: {
+                parts: [{ text: '{"low": 35.00, "mid": 50.00, "high": 65.00, "confidence": 80, "reasoning": "Good product", "comparables": []}' }],
+              },
+            }],
+          }));
+        }
+        return new Response("Unknown", { status: 404 });
+      });
+
+      const config = makeConfig({
+        env: {
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        expect(result.item.analysis_source).toBe("blended");
+        // Verify that the prompt sent to Gemini included eBay sold data
+        expect(capturedBody).not.toBeNull();
+        expect(capturedBody!).toContain("eBay Sold Median");
+        expect(capturedBody!).toContain("55"); // median of the 5 items
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("should pass null eBay data to LLM when eBay search fails", async () => {
+      let capturedBody: string | null = null;
+      const lotData = {
+        id: 12345,
+        auction_id: 100,
+        lot_number: "42",
+        product_name: "Ninja Blender NJ600",
+        upc: "012345678901",
+        condition: "OPEN BOX",
+        retail_price: 79.99,
+        building_id: 15,
+        current_bid: 5.00,
+        is_open: true,
+        total_bids: 3,
+        watchers_count: 7,
+      };
+      const buildings = [
+        { id: 15, name: "Robinson", sales_tax: 0.06, transfer_destinations: "20,21" },
+      ];
+
+      mockFetch(async (url, init) => {
+        if (url.includes("/map-bid/ddb/lot/")) {
+          return new Response(JSON.stringify(lotData));
+        }
+        if (url.includes("/buildings")) {
+          return new Response(JSON.stringify(buildings));
+        }
+        if (url.includes("oauth2/token")) {
+          return new Response("Unauthorized", { status: 401 });
+        }
+        if (url.includes("generativelanguage.googleapis.com")) {
+          capturedBody = typeof init?.body === "string" ? init.body : null;
+          return new Response(JSON.stringify({
+            candidates: [{
+              content: {
+                parts: [{ text: '{"low": 25.00, "mid": 40.00, "high": 55.00, "confidence": 50, "reasoning": "No comps", "comparables": []}' }],
+              },
+            }],
+          }));
+        }
+        return new Response("Unknown", { status: 404 });
+      });
+
+      const config = makeConfig({
+        env: {
+          ebayAppId: "test-app-id",
+          ebayAppSecret: "test-secret",
+          geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
+        },
+      });
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+
+      try {
+        const result = await analyzeItem(12345, config);
+        // eBay failed, so AI-only source
+        expect(result.item.analysis_source).toBe("ai");
+        // Verify prompt included "no completed sales" message
+        expect(capturedBody).not.toBeNull();
+        expect(capturedBody!).toContain("No completed sales found");
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
     it("should set analysis_source to none when no Gemini API key and insufficient comps", async () => {
       setupMocks({
         ebayItems: [
