@@ -20,6 +20,7 @@ export interface ItemResult {
       mid: number;
       high: number;
       confidence: number | null;
+      cost_usd: number | null;
       latency_ms: number;
       error?: string;
     }
@@ -31,6 +32,7 @@ export interface ModelSummary {
   mae: number;
   mape: number;
   coverage_rate: number;
+  avg_cost_usd: number | null;
   confidence_correlation: number | null;
   items_evaluated: number;
   items_errored: number;
@@ -100,6 +102,8 @@ function computeModelSummary(
   let coverageHits = 0;
   let evaluated = 0;
   let errored = 0;
+  let totalCost = 0;
+  let costCount = 0;
   const confidences: number[] = [];
   const accuracies: number[] = [];
 
@@ -128,6 +132,11 @@ function computeModelSummary(
       confidences.push(est.confidence);
       accuracies.push(1 - absError / item.true_value);
     }
+
+    if (est.cost_usd !== null) {
+      totalCost += est.cost_usd;
+      costCount++;
+    }
   }
 
   return {
@@ -135,6 +144,7 @@ function computeModelSummary(
     mae: evaluated > 0 ? totalAbsError / evaluated : 0,
     mape: mapeCount > 0 ? totalPctError / mapeCount : 0,
     coverage_rate: evaluated > 0 ? coverageHits / evaluated : 0,
+    avg_cost_usd: costCount > 0 ? totalCost / costCount : null,
     confidence_correlation: pearsonCorrelation(confidences, accuracies),
     items_evaluated: evaluated,
     items_errored: errored,
@@ -214,6 +224,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
             mid: estimate.mid,
             high: estimate.high,
             confidence: estimate.confidence,
+            cost_usd: null,
             latency_ms: latency,
           };
         } catch (err) {
@@ -223,6 +234,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
             mid: 0,
             high: 0,
             confidence: null,
+            cost_usd: null,
             latency_ms: latency,
             error: (err as Error).message,
           };
@@ -276,6 +288,7 @@ export function printSummaryTable(report: EvalReport): void {
     "MAE",
     "MAPE",
     "Coverage",
+    "Avg Cost",
     "Confidence Corr",
     "Evaluated",
     "Errors",
@@ -285,6 +298,7 @@ export function printSummaryTable(report: EvalReport): void {
     `$${s.mae.toFixed(2)}`,
     `${(s.mape * 100).toFixed(1)}%`,
     `${(s.coverage_rate * 100).toFixed(1)}%`,
+    s.avg_cost_usd !== null ? `$${s.avg_cost_usd.toFixed(4)}` : "N/A",
     s.confidence_correlation !== null
       ? s.confidence_correlation.toFixed(3)
       : "N/A",
