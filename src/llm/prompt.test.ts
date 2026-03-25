@@ -53,6 +53,31 @@ describe("llm/prompt", () => {
       expect(prompt).toContain("JSON");
     });
 
+    it("should warn against retail price anchoring", () => {
+      const prompt = buildPrompt(sampleInput);
+      expect(prompt).toContain("Do NOT anchor your estimate to the retail price");
+      expect(prompt).toContain("Secondary market values are often 10–50% of retail");
+    });
+
+    it("should include brand recognition guidance", () => {
+      const prompt = buildPrompt(sampleInput);
+      expect(prompt).toContain("Unknown or generic brands");
+      expect(prompt).toContain("significantly lower resale value");
+    });
+
+    it("should include category depreciation guidance", () => {
+      const prompt = buildPrompt(sampleInput);
+      expect(prompt).toContain("Furniture and home goods depreciate heavily");
+      expect(prompt).toContain("electronics brands retain more value");
+    });
+
+    it("should include condition guidance", () => {
+      const prompt = buildPrompt(sampleInput);
+      expect(prompt).toContain("Open Box");
+      expect(prompt).toContain("As-Is");
+      expect(prompt).toContain("sell for less than new");
+    });
+
     it("should include eBay sold data when available", () => {
       const prompt = buildUserPrompt({
         ...sampleInput,
