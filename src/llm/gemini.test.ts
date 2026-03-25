@@ -33,6 +33,8 @@ const sampleInput: LLMInput = {
   retailPrice: 79.99,
   category: "Kitchen",
   description: "Professional blender",
+  ebaySoldMedian: null,
+  ebaySoldCount: null,
 };
 
 describe("GeminiProvider", () => {

@@ -98,6 +98,8 @@ function fixtureToLLMInput(item: AnnotatedFixtureItem): LLMInput {
     retailPrice: item.retail_price,
     category: item.category,
     description: item.description,
+    ebaySoldMedian: item.ebay_sold_median ?? null,
+    ebaySoldCount: item.ebay_sold_count ?? null,
   };
 }
 

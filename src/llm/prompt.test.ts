@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPrompt, extractJson, parseEstimateResponse } from "./prompt";
+import { buildPrompt, buildUserPrompt, extractJson, parseEstimateResponse } from "./prompt";
 import type { LLMInput } from "./index";
 
 const sampleInput: LLMInput = {
@@ -9,6 +9,8 @@ const sampleInput: LLMInput = {
   retailPrice: 79.99,
   category: "Kitchen",
   description: "Professional blender",
+  ebaySoldMedian: null,
+  ebaySoldCount: null,
 };
 
 describe("llm/prompt", () => {
@@ -31,6 +33,8 @@ describe("llm/prompt", () => {
         retailPrice: null,
         category: null,
         description: null,
+        ebaySoldMedian: null,
+        ebaySoldCount: null,
       });
       expect(prompt).toContain("Widget");
       expect(prompt).toContain("NEW");
@@ -38,6 +42,7 @@ describe("llm/prompt", () => {
       expect(prompt).not.toContain("Retail Price:");
       expect(prompt).not.toContain("Category:");
       expect(prompt).not.toContain("Description:");
+      expect(prompt).toContain("eBay Comps: No completed sales found");
     });
 
     it("should request JSON response format", () => {
@@ -46,6 +51,44 @@ describe("llm/prompt", () => {
       expect(prompt).toContain("reasoning");
       expect(prompt).toContain("comparables");
       expect(prompt).toContain("JSON");
+    });
+
+    it("should include eBay sold data when available", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 210.14,
+        ebaySoldCount: 34,
+      });
+      expect(prompt).toContain("eBay Sold Median: $210.14 (34 recent sales)");
+      expect(prompt).not.toContain("No completed sales found");
+    });
+
+    it("should show no comps message when eBay count is 0", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 0,
+        ebaySoldCount: 0,
+      });
+      expect(prompt).toContain("eBay Comps: No completed sales found");
+      expect(prompt).not.toContain("eBay Sold Median:");
+    });
+
+    it("should show no comps message when eBay fields are null", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: null,
+        ebaySoldCount: null,
+      });
+      expect(prompt).toContain("eBay Comps: No completed sales found");
+    });
+
+    it("should treat zero median with positive count as no comps", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 0,
+        ebaySoldCount: 5,
+      });
+      expect(prompt).toContain("eBay Comps: No completed sales found");
     });
   });
 

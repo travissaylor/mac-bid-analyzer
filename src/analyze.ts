@@ -307,6 +307,8 @@ export async function analyzeItem(
           retailPrice: lot.retail_price,
           category: lot.category,
           description: lot.description,
+          ebaySoldMedian: ebayResult?.median ?? null,
+          ebaySoldCount: ebayCount > 0 ? ebayCount : null,
         });
 
         llmEstimateLow = llmResult.low;

@@ -20,6 +20,8 @@ export interface LLMInput {
   retailPrice: number | null;
   category: string | null;
   description: string | null;
+  ebaySoldMedian: number | null;
+  ebaySoldCount: number | null;
 }
 
 export interface LLMProvider {

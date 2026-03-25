@@ -16,6 +16,11 @@ Where:
 All price values should be in USD as numbers (no dollar signs).`;
 
 export function buildUserPrompt(input: LLMInput): string {
+  const ebayLine =
+    input.ebaySoldCount && input.ebaySoldCount > 0 && input.ebaySoldMedian && input.ebaySoldMedian > 0
+      ? `eBay Sold Median: $${input.ebaySoldMedian.toFixed(2)} (${input.ebaySoldCount} recent sales)`
+      : `eBay Comps: No completed sales found`;
+
   return [
     `Product: ${input.productName}`,
     input.upc ? `UPC: ${input.upc}` : null,
@@ -23,6 +28,7 @@ export function buildUserPrompt(input: LLMInput): string {
     input.retailPrice !== null ? `Retail Price: $${input.retailPrice.toFixed(2)}` : null,
     input.category ? `Category: ${input.category}` : null,
     input.description ? `Description: ${input.description}` : null,
+    ebayLine,
   ].filter(Boolean).join("\n");
 }
 

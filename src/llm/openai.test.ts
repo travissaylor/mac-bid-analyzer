@@ -41,6 +41,8 @@ const sampleInput: LLMInput = {
   retailPrice: 79.99,
   category: "Kitchen",
   description: "Professional blender",
+  ebaySoldMedian: null,
+  ebaySoldCount: null,
 };
 
 describe("OpenAIProvider", () => {
@@ -69,10 +71,11 @@ describe("OpenAIProvider", () => {
     expect(callArgs.model).toBe("gpt-4o-mini");
     expect(callArgs.temperature).toBe(0.1);
     expect(callArgs.response_format).toEqual({ type: "json_object" });
-    expect(callArgs.messages).toBeArrayOfSize(1);
+    expect(callArgs.messages).toBeArrayOfSize(2);
     const messages = callArgs.messages as Array<{ role: string; content: string }>;
-    expect(messages[0].role).toBe("user");
-    expect(messages[0].content).toContain("Ninja Blender NJ600");
+    expect(messages[0].role).toBe("system");
+    expect(messages[1].role).toBe("user");
+    expect(messages[1].content).toContain("Ninja Blender NJ600");
   });
 
   it("should throw when OpenAI returns empty response", async () => {
