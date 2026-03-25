@@ -26,6 +26,15 @@ export class OpenAIProvider implements LLMProvider {
       throw new Error("OpenAI returned an empty response");
     }
 
-    return parseEstimateResponse(content);
+    const estimate = parseEstimateResponse(content);
+
+    if (response.usage) {
+      estimate.usage = {
+        inputTokens: response.usage.prompt_tokens,
+        outputTokens: response.usage.completion_tokens,
+      };
+    }
+
+    return estimate;
   }
 }

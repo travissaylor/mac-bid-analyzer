@@ -10,6 +10,7 @@ export interface LLMEstimate {
   confidence: number | null;
   reasoning: string | null;
   comparables: LLMComparable[] | null;
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface LLMInput {

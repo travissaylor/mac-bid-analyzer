@@ -49,10 +49,45 @@ export interface EvalReport {
   details: ItemResult[];
 }
 
+export interface PricingEntry {
+  inputPer1M: number;
+  outputPer1M: number;
+}
+
+export type PricingConfig = Record<string, PricingEntry>;
+
 export interface RunEvalOptions {
   fixturePath: string;
   models: string[];
   env: { geminiApiKey: string; openaiApiKey: string };
+  pricingPath?: string;
+}
+
+const DEFAULT_PRICING_PATH = "evals/pricing.json";
+
+export async function loadPricing(pricingPath: string): Promise<PricingConfig> {
+  try {
+    const file = Bun.file(pricingPath);
+    const text = await file.text();
+    return JSON.parse(text) as PricingConfig;
+  } catch {
+    console.error(`Warning: Could not load pricing config from ${pricingPath}`);
+    return {};
+  }
+}
+
+export function calculateCost(
+  usage: { inputTokens: number; outputTokens: number } | undefined,
+  modelName: string,
+  pricing: PricingConfig,
+): number | null {
+  if (!usage) return null;
+  const entry = pricing[modelName];
+  if (!entry) return null;
+  return (
+    (usage.inputTokens / 1_000_000) * entry.inputPer1M +
+    (usage.outputTokens / 1_000_000) * entry.outputPer1M
+  );
 }
 
 function fixtureToLLMInput(item: AnnotatedFixtureItem): LLMInput {
@@ -185,6 +220,17 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
     throw new Error("No models to evaluate — all models were skipped due to missing API keys");
   }
 
+  // Load pricing config
+  const pricingPath = options.pricingPath ?? DEFAULT_PRICING_PATH;
+  const pricing = await loadPricing(pricingPath);
+
+  // Warn about models missing from pricing config
+  for (const { model, modelString } of validatedModels) {
+    if (!pricing[model]) {
+      console.error(`Warning: No pricing entry for model "${model}" — cost_usd will be null for ${modelString}`);
+    }
+  }
+
   // Load fixtures
   const { annotated, warnings } = await loadFixtures(fixturePath);
 
@@ -219,12 +265,13 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
         try {
           const estimate: LLMEstimate = await llmProvider.estimate(input);
           const latency = Math.round(performance.now() - start);
+          const cost = calculateCost(estimate.usage, model, pricing);
           details[i].estimates[modelString] = {
             low: estimate.low,
             mid: estimate.mid,
             high: estimate.high,
             confidence: estimate.confidence,
-            cost_usd: null,
+            cost_usd: cost,
             latency_ms: latency,
           };
         } catch (err) {

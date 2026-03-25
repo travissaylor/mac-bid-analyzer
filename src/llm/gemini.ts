@@ -28,6 +28,16 @@ export class GeminiProvider implements LLMProvider {
       throw new Error("Gemini returned no text content");
     }
 
-    return parseEstimateResponse(text);
+    const estimate = parseEstimateResponse(text);
+
+    const usageMetadata = response.usageMetadata;
+    if (usageMetadata?.promptTokenCount != null && usageMetadata?.candidatesTokenCount != null) {
+      estimate.usage = {
+        inputTokens: usageMetadata.promptTokenCount,
+        outputTokens: usageMetadata.candidatesTokenCount,
+      };
+    }
+
+    return estimate;
   }
 }

@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { runEval, saveReport, printSummaryTable } from "./runner";
-import type { EvalReport } from "./runner";
+import { runEval, saveReport, printSummaryTable, loadPricing, calculateCost } from "./runner";
+import type { EvalReport, PricingConfig } from "./runner";
 import { mkdirSync, rmSync, existsSync } from "fs";
 
 const TEST_DIR = "test-runner-tmp";
@@ -102,6 +102,54 @@ describe("saveReport", () => {
     const content = await Bun.file(outputPath).json();
     expect(content.metadata.run_at).toBe("2025-01-01T00:00:00Z");
     expect(content.metadata.models).toEqual(["gemini/test"]);
+  });
+});
+
+describe("loadPricing", () => {
+  test("loads pricing from a valid JSON file", async () => {
+    const pricingPath = `${TEST_DIR}/pricing.json`;
+    await Bun.write(
+      pricingPath,
+      JSON.stringify({
+        "gpt-4o": { inputPer1M: 2.5, outputPer1M: 10.0 },
+      }),
+    );
+    const pricing = await loadPricing(pricingPath);
+    expect(pricing["gpt-4o"]).toEqual({ inputPer1M: 2.5, outputPer1M: 10.0 });
+  });
+
+  test("returns empty object for missing file", async () => {
+    const pricing = await loadPricing(`${TEST_DIR}/nonexistent.json`);
+    expect(pricing).toEqual({});
+  });
+});
+
+describe("calculateCost", () => {
+  const pricing: PricingConfig = {
+    "gpt-4o": { inputPer1M: 2.5, outputPer1M: 10.0 },
+  };
+
+  test("calculates cost from usage and pricing", () => {
+    const cost = calculateCost(
+      { inputTokens: 1000, outputTokens: 500 },
+      "gpt-4o",
+      pricing,
+    );
+    // (1000/1M)*2.5 + (500/1M)*10.0 = 0.0025 + 0.005 = 0.0075
+    expect(cost).toBeCloseTo(0.0075, 6);
+  });
+
+  test("returns null when usage is undefined", () => {
+    expect(calculateCost(undefined, "gpt-4o", pricing)).toBeNull();
+  });
+
+  test("returns null when model not in pricing", () => {
+    const cost = calculateCost(
+      { inputTokens: 1000, outputTokens: 500 },
+      "unknown-model",
+      pricing,
+    );
+    expect(cost).toBeNull();
   });
 });
 
