@@ -14,7 +14,7 @@ export interface ConfigFile {
   min_ebay_comps: number;
   location_tiers: LocationTiers;
   manual_review_conditions: string[];
-  gemini_model: string;
+  llm_model: string;
 }
 
 export interface CliOverrides {
@@ -28,6 +28,7 @@ export interface AppConfig extends ConfigFile {
     ebayAppId: string;
     ebayAppSecret: string;
     geminiApiKey: string;
+    openaiApiKey: string;
   };
   cli: CliOverrides;
 }
@@ -43,7 +44,7 @@ const DEFAULTS: ConfigFile = {
     remote: { extra_cost: 25 },
   },
   manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-  gemini_model: "gemini-3.1-flash-lite-preview",
+  llm_model: "openai/gpt-4o-mini",
 };
 
 function validateConfig(config: ConfigFile): string[] {
@@ -88,11 +89,30 @@ function validateConfig(config: ConfigFile): string[] {
     errors.push("manual_review_conditions must contain only strings");
   }
 
-  if (typeof config.gemini_model !== "string" || config.gemini_model.length === 0) {
-    errors.push("gemini_model must be a non-empty string");
+  if (typeof config.llm_model !== "string" || !/^[a-z]+\/.+$/.test(config.llm_model)) {
+    errors.push('llm_model must be in "provider/model-name" format (e.g. "openai/gpt-4o-mini")');
+  } else {
+    const provider = config.llm_model.split("/")[0];
+    if (provider !== "openai" && provider !== "gemini") {
+      errors.push(`llm_model provider "${provider}" is not supported (use "openai" or "gemini")`);
+    }
   }
 
   return errors;
+}
+
+function resolveModel(parsed: Record<string, unknown>): string {
+  if (typeof parsed.llm_model === "string") {
+    return parsed.llm_model;
+  }
+  if (typeof parsed.gemini_model === "string") {
+    console.warn(
+      '[config] "gemini_model" is deprecated — use "llm_model": "gemini/%s" instead',
+      parsed.gemini_model
+    );
+    return `gemini/${parsed.gemini_model}`;
+  }
+  return DEFAULTS.llm_model;
 }
 
 function loadConfigFile(configPath: string): ConfigFile {
@@ -134,7 +154,7 @@ function loadConfigFile(configPath: string): ConfigFile {
     },
     manual_review_conditions:
       (parsed.manual_review_conditions as string[] | undefined) ?? DEFAULTS.manual_review_conditions,
-    gemini_model: (parsed.gemini_model as string | undefined) ?? DEFAULTS.gemini_model,
+    llm_model: resolveModel(parsed),
   };
 
   return merged;
@@ -146,6 +166,7 @@ function loadEnv(): AppConfig["env"] {
     ebayAppId: get("EBAY_APP_ID"),
     ebayAppSecret: get("EBAY_APP_SECRET"),
     geminiApiKey: get("GEMINI_API_KEY"),
+    openaiApiKey: get("OPENAI_API_KEY"),
   };
 }
 

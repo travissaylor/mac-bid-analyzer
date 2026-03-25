@@ -304,7 +304,7 @@ export async function analyzeItem(
           retailPrice: lot.retail_price,
           category: lot.category,
           description: lot.description,
-        }, config.gemini_model);
+        }, config.llm_model.split("/").slice(1).join("/"));
 
         llmEstimateLow = geminiResult.low;
         llmEstimateMid = geminiResult.mid;

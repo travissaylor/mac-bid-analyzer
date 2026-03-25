@@ -21,11 +21,12 @@ function makeConfig(overrides?: Partial<AppConfig>): AppConfig {
       remote: { extra_cost: 25 },
     },
     manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-    gemini_model: "gemini-2.5-flash",
+    llm_model: "gemini/gemini-2.5-flash",
     env: {
       ebayAppId: "",
       ebayAppSecret: "",
       geminiApiKey: "",
+      openaiApiKey: "",
     },
     cli: {},
     ...overrides,

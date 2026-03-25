@@ -38,11 +38,12 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       remote: { extra_cost: 25 },
     },
     manual_review_conditions: ["USED", "SALVAGE", "DAMAGED"],
-    gemini_model: "gemini-2.5-flash",
+    llm_model: "gemini/gemini-2.5-flash",
     env: {
       ebayAppId: "test-app-id",
       ebayAppSecret: "test-secret",
       geminiApiKey: "",
+      openaiApiKey: "",
     },
     cli: {},
     ...overrides,
@@ -370,6 +371,7 @@ describe("analyze", () => {
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
             },
       });
       const origCwd = process.cwd;
@@ -396,6 +398,7 @@ describe("analyze", () => {
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
             },
       });
       const origCwd = process.cwd;
@@ -455,6 +458,7 @@ describe("analyze", () => {
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
             },
       });
       const origCwd = process.cwd;
@@ -489,6 +493,7 @@ describe("analyze", () => {
           ebayAppId: "test-app-id",
           ebayAppSecret: "test-secret",
           geminiApiKey: "test-gemini-key",
+          openaiApiKey: "",
             },
       });
       const origCwd = process.cwd;

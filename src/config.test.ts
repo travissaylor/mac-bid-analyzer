@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, spyOn } from "bun:test";
 import { loadConfig, parseCliOverrides } from "./config";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
@@ -86,6 +86,73 @@ describe("loadConfig", () => {
     expect(typeof config.env.ebayAppId).toBe("string");
     expect(typeof config.env.ebayAppSecret).toBe("string");
     expect(typeof config.env.geminiApiKey).toBe("string");
+    expect(typeof config.env.openaiApiKey).toBe("string");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("defaults llm_model to openai/gpt-4o-mini", () => {
+    const dir = makeTempDir();
+    const config = loadConfig([], dir);
+    expect(config.llm_model).toBe("openai/gpt-4o-mini");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("reads llm_model from config", () => {
+    const dir = makeTempDir();
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ llm_model: "gemini/gemini-2.0-flash" })
+    );
+    const config = loadConfig([], dir);
+    expect(config.llm_model).toBe("gemini/gemini-2.0-flash");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("migrates gemini_model to llm_model with deprecation warning", () => {
+    const dir = makeTempDir();
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ gemini_model: "gemini-3.1-flash-lite-preview" })
+    );
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+    const config = loadConfig([], dir);
+    expect(config.llm_model).toBe("gemini/gemini-3.1-flash-lite-preview");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("deprecated"),
+      "gemini-3.1-flash-lite-preview"
+    );
+    warnSpy.mockRestore();
+    rmSync(dir, { recursive: true });
+  });
+
+  test("llm_model takes precedence over gemini_model", () => {
+    const dir = makeTempDir();
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ llm_model: "openai/gpt-4o-mini", gemini_model: "gemini-2.0-flash" })
+    );
+    const config = loadConfig([], dir);
+    expect(config.llm_model).toBe("openai/gpt-4o-mini");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("rejects invalid llm_model format", () => {
+    const dir = makeTempDir();
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ llm_model: "just-a-model-name" })
+    );
+    expect(() => loadConfig([], dir)).toThrow("provider/model-name");
+    rmSync(dir, { recursive: true });
+  });
+
+  test("rejects unsupported provider in llm_model", () => {
+    const dir = makeTempDir();
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ llm_model: "anthropic/claude-3" })
+    );
+    expect(() => loadConfig([], dir)).toThrow('not supported');
     rmSync(dir, { recursive: true });
   });
 });

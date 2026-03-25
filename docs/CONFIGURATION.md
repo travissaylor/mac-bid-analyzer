@@ -9,7 +9,10 @@
 EBAY_APP_ID=your-app-id
 EBAY_APP_SECRET=your-app-secret
 
-# Gemini (LLM fallback - free tier)
+# OpenAI API (default LLM provider)
+OPENAI_API_KEY=your-openai-key
+
+# Gemini API (alternative LLM provider)
 GEMINI_API_KEY=your-gemini-key
 ```
 
@@ -30,7 +33,8 @@ GEMINI_API_KEY=your-gemini-key
       "extra_cost": 25
     }
   },
-  "manual_review_conditions": ["USED", "SALVAGE", "DAMAGED"]
+  "manual_review_conditions": ["USED", "SALVAGE", "DAMAGED"],
+  "llm_model": "openai/gpt-4o-mini"
 }
 ```
 
@@ -46,6 +50,7 @@ GEMINI_API_KEY=your-gemini-key
 | `location_tiers.transfer.extra_cost` | number | `10` | Cost added for items at transfer-eligible buildings. |
 | `location_tiers.remote.extra_cost` | number | `25` | Cost added for items at non-transfer buildings. |
 | `manual_review_conditions` | string[] | `["USED", "SALVAGE", "DAMAGED"]` | Conditions that skip auto-recommendation and flag for manual review. |
+| `llm_model` | string | `"openai/gpt-4o-mini"` | LLM provider and model in `"provider/model-name"` format. Supported providers: `openai`, `gemini`. |
 
 ## CLI Flags
 
