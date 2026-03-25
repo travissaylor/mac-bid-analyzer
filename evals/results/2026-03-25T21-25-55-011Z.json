@@ -1,0 +1,977 @@
+{
+  "metadata": {
+    "run_at": "2026-03-25T21:25:55.011Z",
+    "fixture_path": "evals/fixtures.jsonl",
+    "models": [
+      "gemini/gemini-2.5-flash",
+      "gemini/gemini-3.1-flash-lite-preview",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "gemini/gemini-3.1-pro-preview",
+      "openai/gpt-5-mini",
+      "openai/gpt-5-nano",
+      "openai/gpt-4.1-mini"
+    ],
+    "total_items": 12
+  },
+  "summary": [
+    {
+      "model": "gemini/gemini-2.5-flash",
+      "mae": 61.916666666666664,
+      "mape": 0.8569440647072226,
+      "coverage_rate": 0.25,
+      "avg_cost_usd": 0.0002587124999999999,
+      "confidence_correlation": 0.15607624743481138,
+      "items_evaluated": 12,
+      "items_errored": 0
+    },
+    {
+      "model": "gemini/gemini-3.1-flash-lite-preview",
+      "mae": 67.41666666666667,
+      "mape": 0.9434035847193739,
+      "coverage_rate": 0.4166666666666667,
+      "avg_cost_usd": null,
+      "confidence_correlation": 0.7810064753985643,
+      "items_evaluated": 12,
+      "items_errored": 0
+    },
+    {
+      "model": "openai/gpt-4o",
+      "mae": 113.33333333333333,
+      "mape": 1.7352025898078531,
+      "coverage_rate": 0.3333333333333333,
+      "avg_cost_usd": 0.002726458333333333,
+      "confidence_correlation": 0.4379193980771761,
+      "items_evaluated": 12,
+      "items_errored": 0
+    },
+    {
+      "model": "openai/gpt-4o-mini",
+      "mae": 135,
+      "mape": 1.9924992405255564,
+      "coverage_rate": 0.3333333333333333,
+      "avg_cost_usd": 0.0001724875,
+      "confidence_correlation": null,
+      "items_evaluated": 12,
+      "items_errored": 0
+    },
+    {
+      "model": "gemini/gemini-3.1-pro-preview",
+      "mae": 53.583333333333336,
+      "mape": 0.5696692488797753,
+      "coverage_rate": 0.5,
+      "avg_cost_usd": null,
+      "confidence_correlation": 0.49089236292710975,
+      "items_evaluated": 12,
+      "items_errored": 0
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "mae": 0,
+      "mape": 0,
+      "coverage_rate": 0,
+      "avg_cost_usd": null,
+      "confidence_correlation": null,
+      "items_evaluated": 0,
+      "items_errored": 12
+    },
+    {
+      "model": "openai/gpt-5-nano",
+      "mae": 0,
+      "mape": 0,
+      "coverage_rate": 0,
+      "avg_cost_usd": null,
+      "confidence_correlation": null,
+      "items_evaluated": 0,
+      "items_errored": 12
+    },
+    {
+      "model": "openai/gpt-4.1-mini",
+      "mae": 152.5,
+      "mape": 2.0344888736993996,
+      "coverage_rate": 0.3333333333333333,
+      "avg_cost_usd": 0.00041943333333333346,
+      "confidence_correlation": 0.38617238804402604,
+      "items_evaluated": 12,
+      "items_errored": 0
+    }
+  ],
+  "details": [
+    {
+      "lot_id": 52363265,
+      "product_name": "Thermaltake Toughpower SFX 1000W Platinum Power Supply",
+      "true_value": 175,
+      "estimates": {
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 1351,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 1354,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 160,
+          "mid": 185,
+          "high": 210,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 2279
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 150,
+          "mid": 180,
+          "high": 210,
+          "confidence": 85,
+          "cost_usd": 0.00047080000000000006,
+          "latency_ms": 3497
+        },
+        "openai/gpt-4o": {
+          "low": 150,
+          "mid": 180,
+          "high": 210,
+          "confidence": 75,
+          "cost_usd": 0.0029325,
+          "latency_ms": 4487
+        },
+        "openai/gpt-4o-mini": {
+          "low": 150,
+          "mid": 180,
+          "high": 210,
+          "confidence": 85,
+          "cost_usd": 0.00018135,
+          "latency_ms": 5239
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 95,
+          "mid": 120,
+          "high": 145,
+          "confidence": 75,
+          "cost_usd": 0.0002688,
+          "latency_ms": 15395
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 75,
+          "mid": 115,
+          "high": 145,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 15741
+        }
+      }
+    },
+    {
+      "lot_id": 52390964,
+      "product_name": "UGREEN 2-Bay NAS Enclosure Intel X86",
+      "true_value": 300,
+      "estimates": {
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 216,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 818,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 240,
+          "mid": 275,
+          "high": 310,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 1763
+        },
+        "openai/gpt-4o": {
+          "low": 250,
+          "mid": 300,
+          "high": 350,
+          "confidence": 85,
+          "cost_usd": 0.0026950000000000003,
+          "latency_ms": 3546
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 280,
+          "mid": 320,
+          "high": 360,
+          "confidence": 75,
+          "cost_usd": 0.0004312,
+          "latency_ms": 4886
+        },
+        "openai/gpt-4o-mini": {
+          "low": 250,
+          "mid": 300,
+          "high": 350,
+          "confidence": 85,
+          "cost_usd": 0.0001713,
+          "latency_ms": 4198
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 280,
+          "mid": 310,
+          "high": 340,
+          "confidence": 70,
+          "cost_usd": 0.0002784,
+          "latency_ms": 10968
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 240,
+          "mid": 285,
+          "high": 330,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 13170
+        }
+      }
+    },
+    {
+      "lot_id": 52369738,
+      "product_name": "Kevinplus Coffee Table ",
+      "true_value": 25,
+      "estimates": {
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 637,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 975,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 80,
+          "mid": 115,
+          "high": 150,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 2034
+        },
+        "openai/gpt-4o": {
+          "low": 150,
+          "mid": 180,
+          "high": 210,
+          "confidence": 75,
+          "cost_usd": 0.0024675,
+          "latency_ms": 2737
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 150,
+          "mid": 190,
+          "high": 220,
+          "confidence": 75,
+          "cost_usd": 0.00039000000000000005,
+          "latency_ms": 3717
+        },
+        "openai/gpt-4o-mini": {
+          "low": 150,
+          "mid": 180,
+          "high": 220,
+          "confidence": 85,
+          "cost_usd": 0.00015884999999999999,
+          "latency_ms": 2969
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 90,
+          "mid": 130,
+          "high": 160,
+          "confidence": 75,
+          "cost_usd": 0.00023444999999999998,
+          "latency_ms": 12970
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 60,
+          "mid": 85,
+          "high": 120,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 15240
+        }
+      }
+    },
+    {
+      "lot_id": 52458485,
+      "product_name": "Generic Edgy Collection Hand-Tufted Bamboo Silk & Wool Area Rug",
+      "true_value": 150,
+      "estimates": {
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 166,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 86,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 350,
+          "mid": 475,
+          "high": 600,
+          "confidence": 65,
+          "cost_usd": null,
+          "latency_ms": 1994
+        },
+        "openai/gpt-4o": {
+          "low": 600,
+          "mid": 850,
+          "high": 1100,
+          "confidence": 75,
+          "cost_usd": 0.0028025,
+          "latency_ms": 2968
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 900,
+          "mid": 1150,
+          "high": 1350,
+          "confidence": 75,
+          "cost_usd": 0.0004164,
+          "latency_ms": 2662
+        },
+        "openai/gpt-4o-mini": {
+          "low": 800,
+          "mid": 1000,
+          "high": 1200,
+          "confidence": 85,
+          "cost_usd": 0.00016815,
+          "latency_ms": 3989
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 180,
+          "mid": 275,
+          "high": 350,
+          "confidence": 70,
+          "cost_usd": 0.000267,
+          "latency_ms": 14257
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 120,
+          "mid": 200,
+          "high": 350,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 13159
+        }
+      }
+    },
+    {
+      "lot_id": 52486208,
+      "product_name": "allen + roth Floor Lamp",
+      "true_value": 25,
+      "estimates": {
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 245,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 102,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 35,
+          "mid": 45,
+          "high": 55,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 1386
+        },
+        "openai/gpt-4o": {
+          "low": 40,
+          "mid": 55,
+          "high": 70,
+          "confidence": 75,
+          "cost_usd": 0.0023125000000000003,
+          "latency_ms": 3275
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 40,
+          "mid": 55,
+          "high": 65,
+          "confidence": 75,
+          "cost_usd": 0.00041,
+          "latency_ms": 2867
+        },
+        "openai/gpt-4o-mini": {
+          "low": 40,
+          "mid": 55,
+          "high": 70,
+          "confidence": 85,
+          "cost_usd": 0.00016514999999999998,
+          "latency_ms": 4179
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 25,
+          "mid": 35,
+          "high": 45,
+          "confidence": 70,
+          "cost_usd": 0.0002418,
+          "latency_ms": 12081
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 15,
+          "mid": 25,
+          "high": 40,
+          "confidence": 80,
+          "cost_usd": null,
+          "latency_ms": 14713
+        }
+      }
+    },
+    {
+      "lot_id": 52417107,
+      "product_name": "COZYDESG Area Rug ",
+      "true_value": 20,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 96,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 1050,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 35,
+          "mid": 45,
+          "high": 55,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 1613
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 50,
+          "mid": 65,
+          "high": 80,
+          "confidence": 75,
+          "cost_usd": 0.00037240000000000005,
+          "latency_ms": 2867
+        },
+        "openai/gpt-4o": {
+          "low": 50,
+          "mid": 65,
+          "high": 80,
+          "confidence": 75,
+          "cost_usd": 0.0026575,
+          "latency_ms": 4508
+        },
+        "openai/gpt-4o-mini": {
+          "low": 60,
+          "mid": 75,
+          "high": 90,
+          "confidence": 85,
+          "cost_usd": 0.00016485,
+          "latency_ms": 3197
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 35,
+          "mid": 45,
+          "high": 55,
+          "confidence": 75,
+          "cost_usd": 0.0001974,
+          "latency_ms": 9321
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 28,
+          "mid": 38,
+          "high": 48,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 11364
+        }
+      }
+    },
+    {
+      "lot_id": 52392104,
+      "product_name": "GIGABYTE GeForce RTX 5060 Ti Gaming OC 16G Graphics Card - Size: 16 Gb",
+      "true_value": 475,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 236,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 89,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 420,
+          "mid": 460,
+          "high": 490,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 1678
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 450,
+          "mid": 485,
+          "high": 520,
+          "confidence": 85,
+          "cost_usd": 0.00046560000000000004,
+          "latency_ms": 2664
+        },
+        "openai/gpt-4o": {
+          "low": 450,
+          "mid": 480,
+          "high": 510,
+          "confidence": 85,
+          "cost_usd": 0.0030800000000000003,
+          "latency_ms": 3687
+        },
+        "openai/gpt-4o-mini": {
+          "low": 400,
+          "mid": 450,
+          "high": 500,
+          "confidence": 85,
+          "cost_usd": 0.0001908,
+          "latency_ms": 4240
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 270,
+          "mid": 320,
+          "high": 370,
+          "confidence": 65,
+          "cost_usd": 0.00031514999999999994,
+          "latency_ms": 19147
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 220,
+          "mid": 275,
+          "high": 340,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 60490
+        }
+      }
+    },
+    {
+      "lot_id": 52361782,
+      "product_name": "Latitude Run Fluted Round End Table Set",
+      "true_value": 50,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 139,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 84,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 120,
+          "mid": 150,
+          "high": 180,
+          "confidence": 75,
+          "cost_usd": null,
+          "latency_ms": 2031
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 180,
+          "mid": 220,
+          "high": 260,
+          "confidence": 85,
+          "cost_usd": 0.0003792,
+          "latency_ms": 3582
+        },
+        "openai/gpt-4o": {
+          "low": 150,
+          "mid": 200,
+          "high": 250,
+          "confidence": 85,
+          "cost_usd": 0.00246,
+          "latency_ms": 2574
+        },
+        "openai/gpt-4o-mini": {
+          "low": 150,
+          "mid": 200,
+          "high": 250,
+          "confidence": 85,
+          "cost_usd": 0.0001638,
+          "latency_ms": 4056
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 90,
+          "mid": 130,
+          "high": 160,
+          "confidence": 80,
+          "cost_usd": 0.00020669999999999998,
+          "latency_ms": 7680
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 110,
+          "mid": 145,
+          "high": 175,
+          "confidence": 80,
+          "cost_usd": null,
+          "latency_ms": 13647
+        }
+      }
+    },
+    {
+      "lot_id": 52280796,
+      "product_name": "Apple M4 Mac Mini Desktop Computer ",
+      "true_value": 1100,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 98,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 108,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 1050,
+          "mid": 1150,
+          "high": 1225,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 2008
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 1100,
+          "mid": 1200,
+          "high": 1300,
+          "confidence": 75,
+          "cost_usd": 0.000402,
+          "latency_ms": 2165
+        },
+        "openai/gpt-4o": {
+          "low": 950,
+          "mid": 1100,
+          "high": 1250,
+          "confidence": 85,
+          "cost_usd": 0.0030725,
+          "latency_ms": 3161
+        },
+        "openai/gpt-4o-mini": {
+          "low": 1000,
+          "mid": 1150,
+          "high": 1300,
+          "confidence": 85,
+          "cost_usd": 0.00015194999999999998,
+          "latency_ms": 3585
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 1000,
+          "mid": 1075,
+          "high": 1150,
+          "confidence": 95,
+          "cost_usd": 0.00031965,
+          "latency_ms": 14134
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 900,
+          "mid": 1050,
+          "high": 1150,
+          "confidence": 80,
+          "cost_usd": null,
+          "latency_ms": 63932
+        }
+      }
+    },
+    {
+      "lot_id": 52372156,
+      "product_name": "Suevery AMD Ryzen  Gaming PC  - Size: 1Tb ",
+      "true_value": 250,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 75,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 241,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 320,
+          "mid": 380,
+          "high": 440,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 2393
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 400,
+          "mid": 460,
+          "high": 510,
+          "confidence": 85,
+          "cost_usd": 0.00047040000000000005,
+          "latency_ms": 5003
+        },
+        "openai/gpt-4o": {
+          "low": 400,
+          "mid": 450,
+          "high": 500,
+          "confidence": 75,
+          "cost_usd": 0.0030499999999999998,
+          "latency_ms": 8209
+        },
+        "openai/gpt-4o-mini": {
+          "low": 400,
+          "mid": 450,
+          "high": 500,
+          "confidence": 85,
+          "cost_usd": 0.00020099999999999998,
+          "latency_ms": 4913
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 350,
+          "mid": 380,
+          "high": 410,
+          "confidence": 88,
+          "cost_usd": 0.00031005,
+          "latency_ms": 14082
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 280,
+          "mid": 340,
+          "high": 400,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 21060
+        }
+      }
+    },
+    {
+      "lot_id": 52336219,
+      "product_name": "Logitech Blue Yeti USB Microphone",
+      "true_value": 60,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 210,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 122,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 55,
+          "mid": 70,
+          "high": 85,
+          "confidence": 90,
+          "cost_usd": null,
+          "latency_ms": 1843
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 75,
+          "mid": 95,
+          "high": 115,
+          "confidence": 85,
+          "cost_usd": 0.000402,
+          "latency_ms": 3584
+        },
+        "openai/gpt-4o": {
+          "low": 80,
+          "mid": 100,
+          "high": 120,
+          "confidence": 85,
+          "cost_usd": 0.0026125000000000002,
+          "latency_ms": 2287
+        },
+        "openai/gpt-4o-mini": {
+          "low": 90,
+          "mid": 110,
+          "high": 130,
+          "confidence": 85,
+          "cost_usd": 0.00017415,
+          "latency_ms": 3689
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 65,
+          "mid": 75,
+          "high": 85,
+          "confidence": 90,
+          "cost_usd": 0.0002367,
+          "latency_ms": 6818
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 50,
+          "mid": 65,
+          "high": 80,
+          "confidence": 90,
+          "cost_usd": null,
+          "latency_ms": 12596
+        }
+      }
+    },
+    {
+      "lot_id": 52335299,
+      "product_name": "RONGSHU RS550 512GB SATA SSD Internal Solid State Drive",
+      "true_value": 15,
+      "estimates": {
+        "openai/gpt-5-nano": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 121,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "openai/gpt-5-mini": {
+          "low": 0,
+          "mid": 0,
+          "high": 0,
+          "confidence": null,
+          "cost_usd": null,
+          "latency_ms": 79,
+          "error": "400 Unsupported value: 'temperature' does not support 0.1 with this model. Only the default (1) value is supported."
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "low": 18,
+          "mid": 24,
+          "high": 30,
+          "confidence": 85,
+          "cost_usd": null,
+          "latency_ms": 1741
+        },
+        "openai/gpt-4.1-mini": {
+          "low": 40,
+          "mid": 55,
+          "high": 65,
+          "confidence": 75,
+          "cost_usd": 0.0004232,
+          "latency_ms": 4074
+        },
+        "openai/gpt-4o": {
+          "low": 30,
+          "mid": 45,
+          "high": 60,
+          "confidence": 75,
+          "cost_usd": 0.002575,
+          "latency_ms": 2599
+        },
+        "openai/gpt-4o-mini": {
+          "low": 50,
+          "mid": 65,
+          "high": 80,
+          "confidence": 85,
+          "cost_usd": 0.00017849999999999997,
+          "latency_ms": 3684
+        },
+        "gemini/gemini-2.5-flash": {
+          "low": 18,
+          "mid": 23,
+          "high": 28,
+          "confidence": 90,
+          "cost_usd": 0.00022844999999999997,
+          "latency_ms": 7893
+        },
+        "gemini/gemini-3.1-pro-preview": {
+          "low": 12,
+          "mid": 15,
+          "high": 19,
+          "confidence": 90,
+          "cost_usd": null,
+          "latency_ms": 16798
+        }
+      }
+    }
+  ]
+}

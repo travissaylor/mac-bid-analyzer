@@ -1,18 +1,6 @@
 import type { LLMInput, LLMEstimate, LLMComparable } from "./index";
 
-export function buildPrompt(input: LLMInput): string {
-  const parts = [
-    `Product: ${input.productName}`,
-    input.upc ? `UPC: ${input.upc}` : null,
-    `Condition: ${input.condition}`,
-    input.retailPrice !== null ? `Retail Price: $${input.retailPrice.toFixed(2)}` : null,
-    input.category ? `Category: ${input.category}` : null,
-    input.description ? `Description: ${input.description}` : null,
-  ].filter(Boolean).join("\n");
-
-  return `You are a pricing expert. Estimate the secondary market value (what this item would sell for on eBay as a completed/sold listing) for the following product. Consider the condition when estimating.
-
-${parts}
+export const SYSTEM_PROMPT = `You are a pricing expert. Estimate the secondary market value (what this item would sell for on eBay as a completed/sold listing) for the following product. Consider the condition when estimating.
 
 Respond with ONLY a JSON object in this exact format, no other text:
 {"low": <number>, "mid": <number>, "high": <number>, "confidence": <number>, "reasoning": "<string>", "comparables": [{"name": "<string>", "estimatedPrice": <number>}]}
@@ -26,6 +14,20 @@ Where:
 - "comparables" is an array of similar products/listings you are basing the estimate on, each with a "name" and "estimatedPrice"
 
 All price values should be in USD as numbers (no dollar signs).`;
+
+export function buildUserPrompt(input: LLMInput): string {
+  return [
+    `Product: ${input.productName}`,
+    input.upc ? `UPC: ${input.upc}` : null,
+    `Condition: ${input.condition}`,
+    input.retailPrice !== null ? `Retail Price: $${input.retailPrice.toFixed(2)}` : null,
+    input.category ? `Category: ${input.category}` : null,
+    input.description ? `Description: ${input.description}` : null,
+  ].filter(Boolean).join("\n");
+}
+
+export function buildPrompt(input: LLMInput): string {
+  return `${SYSTEM_PROMPT}\n\n${buildUserPrompt(input)}`;
 }
 
 /** Extract the outermost JSON object from text using brace counting. */
