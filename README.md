@@ -39,3 +39,21 @@ bun run src/cli.ts results
 # Show full detail for an item
 bun run src/cli.ts detail <lotId>
 ```
+
+## Deploying
+
+The Telegram bot runs on a persona server as a system service.
+
+To deploy changes:
+
+```bash
+git pull origin main
+sudo systemctl restart mac-bid-telegram
+```
+
+To check status and logs:
+
+```bash
+sudo systemctl status mac-bid-telegram
+sudo journalctl -u mac-bid-telegram -f
+```
