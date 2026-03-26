@@ -13,6 +13,7 @@ export interface FixtureItem {
   description: string | null;
   ebay_sold_median: number | null;
   ebay_sold_count: number;
+  ebay_search_query: string | null;
   true_value: number | null;
 }
 
@@ -27,6 +28,7 @@ export function toFixtureItem(item: AnalyzedItem): FixtureItem {
     description: item.description,
     ebay_sold_median: item.ebay_sold_median,
     ebay_sold_count: item.ebay_sold_count,
+    ebay_search_query: item.ebay_search_query,
     true_value: null,
   };
 }

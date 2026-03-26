@@ -8,7 +8,7 @@ import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
 import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
 import { exportFixtures } from "./eval/export";
-import { runEval, saveReport, printSummaryTable } from "./eval/runner";
+import { runEval, saveReport, printSummaryTable, printSearchMetrics } from "./eval/runner";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -397,6 +397,7 @@ async function main(): Promise<void> {
         await saveReport(report, outputPath);
         log(`Report saved to ${outputPath}`);
 
+        printSearchMetrics(report);
         printSummaryTable(report);
         process.exit(0);
       } catch (err) {

@@ -1,10 +1,18 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { runEval, saveReport, printSummaryTable, loadPricing, calculateCost } from "./runner";
-import type { EvalReport, PricingConfig } from "./runner";
+import { runEval, saveReport, printSummaryTable, printSearchMetrics, loadPricing, calculateCost, computeSearchMetrics } from "./runner";
+import type { EvalReport, PricingConfig, SearchMetrics } from "./runner";
 import { mkdirSync, rmSync, existsSync } from "fs";
 
 const TEST_DIR = "test-runner-tmp";
 const FIXTURE_FILE = `${TEST_DIR}/fixtures.jsonl`;
+
+const emptySearchMetrics: SearchMetrics = {
+  total_items: 0,
+  hit_rate: 0,
+  items_with_comps: 0,
+  items_without_comps: 0,
+  strategy_distribution: { upc: 0, llm: 0, "llm-broad": 0, "llm-relaxed": 0, none: 0 },
+};
 
 function makeFixtureLine(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -92,6 +100,7 @@ describe("saveReport", () => {
         models: ["gemini/test"],
         total_items: 1,
       },
+      search_metrics: emptySearchMetrics,
       summary: [],
       details: [],
     };
@@ -162,6 +171,7 @@ describe("printSummaryTable", () => {
         models: ["gemini/test"],
         total_items: 1,
       },
+      search_metrics: emptySearchMetrics,
       summary: [
         {
           model: "gemini/test",
@@ -189,6 +199,7 @@ describe("printSummaryTable", () => {
         models: ["gemini/test"],
         total_items: 1,
       },
+      search_metrics: emptySearchMetrics,
       summary: [
         {
           model: "gemini/test",
@@ -215,10 +226,84 @@ describe("printSummaryTable", () => {
         models: [],
         total_items: 0,
       },
+      search_metrics: emptySearchMetrics,
       summary: [],
       details: [],
     };
 
     printSummaryTable(report);
+  });
+});
+
+describe("printSearchMetrics", () => {
+  test("prints without crashing", () => {
+    const report: EvalReport = {
+      metadata: {
+        run_at: "2025-01-01T00:00:00Z",
+        fixture_path: "test.jsonl",
+        models: [],
+        total_items: 3,
+      },
+      search_metrics: {
+        total_items: 3,
+        hit_rate: 0.667,
+        items_with_comps: 2,
+        items_without_comps: 1,
+        strategy_distribution: { upc: 1, llm: 1, "llm-broad": 0, "llm-relaxed": 0, none: 1 },
+      },
+      summary: [],
+      details: [],
+    };
+    printSearchMetrics(report);
+  });
+});
+
+describe("computeSearchMetrics", () => {
+  test("computes hit rate from ebay_sold_count", () => {
+    const items = [
+      { lot_id: 1, product_name: "A", upc: null, condition: "New", retail_price: 100, category: null, description: null, ebay_sold_median: 80, ebay_sold_count: 10, ebay_search_query: "upc:123", true_value: 50 },
+      { lot_id: 2, product_name: "B", upc: null, condition: "New", retail_price: 50, category: null, description: null, ebay_sold_median: 0, ebay_sold_count: 0, ebay_search_query: null, true_value: 25 },
+      { lot_id: 3, product_name: "C", upc: null, condition: "New", retail_price: 200, category: null, description: null, ebay_sold_median: 150, ebay_sold_count: 7, ebay_search_query: "llm:Brand Model", true_value: 100 },
+    ];
+    const metrics = computeSearchMetrics(items);
+    expect(metrics.total_items).toBe(3);
+    expect(metrics.items_with_comps).toBe(2);
+    expect(metrics.items_without_comps).toBe(1);
+    expect(metrics.hit_rate).toBeCloseTo(0.667, 2);
+  });
+
+  test("tracks strategy distribution", () => {
+    const items = [
+      { lot_id: 1, product_name: "A", upc: null, condition: "New", retail_price: 100, category: null, description: null, ebay_sold_median: 80, ebay_sold_count: 10, ebay_search_query: "upc:123", true_value: 50 },
+      { lot_id: 2, product_name: "B", upc: null, condition: "New", retail_price: 50, category: null, description: null, ebay_sold_median: 40, ebay_sold_count: 6, ebay_search_query: "llm:Brand X", true_value: 25 },
+      { lot_id: 3, product_name: "C", upc: null, condition: "New", retail_price: 200, category: null, description: null, ebay_sold_median: 0, ebay_sold_count: 0, ebay_search_query: null, true_value: 100 },
+      { lot_id: 4, product_name: "D", upc: null, condition: "New", retail_price: 300, category: null, description: null, ebay_sold_median: 250, ebay_sold_count: 3, ebay_search_query: "llm-relaxed:Brand", true_value: 200 },
+      { lot_id: 5, product_name: "E", upc: null, condition: "New", retail_price: 100, category: null, description: null, ebay_sold_median: 70, ebay_sold_count: 8, ebay_search_query: "llm-broad:Brand", true_value: 60 },
+    ];
+    const metrics = computeSearchMetrics(items);
+    expect(metrics.strategy_distribution).toEqual({
+      upc: 1,
+      llm: 1,
+      "llm-broad": 1,
+      "llm-relaxed": 1,
+      none: 1,
+    });
+  });
+
+  test("handles empty items", () => {
+    const metrics = computeSearchMetrics([]);
+    expect(metrics.total_items).toBe(0);
+    expect(metrics.hit_rate).toBe(0);
+    expect(metrics.items_with_comps).toBe(0);
+  });
+
+  test("respects custom minComps threshold", () => {
+    const items = [
+      { lot_id: 1, product_name: "A", upc: null, condition: "New", retail_price: 100, category: null, description: null, ebay_sold_median: 80, ebay_sold_count: 3, ebay_search_query: "upc:123", true_value: 50 },
+    ];
+    // With default minComps=5, 3 comps is insufficient
+    expect(computeSearchMetrics(items).items_with_comps).toBe(0);
+    // With minComps=3, 3 comps is sufficient
+    expect(computeSearchMetrics(items, 3).items_with_comps).toBe(1);
   });
 });

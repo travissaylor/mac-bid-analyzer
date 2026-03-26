@@ -38,6 +38,20 @@ export interface ModelSummary {
   items_errored: number;
 }
 
+export interface SearchMetrics {
+  total_items: number;
+  hit_rate: number;
+  items_with_comps: number;
+  items_without_comps: number;
+  strategy_distribution: {
+    upc: number;
+    llm: number;
+    "llm-broad": number;
+    "llm-relaxed": number;
+    none: number;
+  };
+}
+
 export interface EvalReport {
   metadata: {
     run_at: string;
@@ -45,6 +59,7 @@ export interface EvalReport {
     models: string[];
     total_items: number;
   };
+  search_metrics: SearchMetrics;
   summary: ModelSummary[];
   details: ItemResult[];
 }
@@ -88,6 +103,51 @@ export function calculateCost(
     (usage.inputTokens / 1_000_000) * entry.inputPer1M +
     (usage.outputTokens / 1_000_000) * entry.outputPer1M
   );
+}
+
+/**
+ * Parse the strategy prefix from an ebay_search_query string.
+ * Format: "upc:...", "llm:...", "llm-broad:...", "llm-relaxed:..."
+ */
+function parseStrategy(ebaySearchQuery: string | null): "upc" | "llm" | "llm-broad" | "llm-relaxed" | "none" {
+  if (!ebaySearchQuery) return "none";
+  if (ebaySearchQuery.startsWith("upc:")) return "upc";
+  if (ebaySearchQuery.startsWith("llm-relaxed:")) return "llm-relaxed";
+  if (ebaySearchQuery.startsWith("llm-broad:")) return "llm-broad";
+  if (ebaySearchQuery.startsWith("llm:")) return "llm";
+  return "none";
+}
+
+export function computeSearchMetrics(
+  items: AnnotatedFixtureItem[],
+  minComps: number = 5,
+): SearchMetrics {
+  const distribution: SearchMetrics["strategy_distribution"] = {
+    upc: 0,
+    llm: 0,
+    "llm-broad": 0,
+    "llm-relaxed": 0,
+    none: 0,
+  };
+
+  let withComps = 0;
+
+  for (const item of items) {
+    const hasComps = item.ebay_sold_count >= minComps;
+    if (hasComps) {
+      withComps++;
+    }
+    const strategy = parseStrategy(item.ebay_search_query ?? null);
+    distribution[strategy]++;
+  }
+
+  return {
+    total_items: items.length,
+    hit_rate: items.length > 0 ? withComps / items.length : 0,
+    items_with_comps: withComps,
+    items_without_comps: items.length - withComps,
+    strategy_distribution: distribution,
+  };
 }
 
 function fixtureToLLMInput(item: AnnotatedFixtureItem): LLMInput {
@@ -301,6 +361,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
 
   const allModelStrings = validatedModels.map((m) => m.modelString);
   const summary = allModelStrings.map((ms) => computeModelSummary(ms, details));
+  const searchMetrics = computeSearchMetrics(annotated);
 
   const report: EvalReport = {
     metadata: {
@@ -309,6 +370,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
       models: allModelStrings,
       total_items: annotated.length,
     },
+    search_metrics: searchMetrics,
     summary,
     details,
   };
@@ -325,6 +387,19 @@ export async function saveReport(
     mkdirSync(dir, { recursive: true });
   }
   await Bun.write(outputPath, JSON.stringify(report, null, 2));
+}
+
+export function printSearchMetrics(report: EvalReport): void {
+  const { search_metrics: m } = report;
+  console.log("eBay Search Metrics:");
+  console.log(`  Hit rate (>= 5 comps): ${(m.hit_rate * 100).toFixed(1)}% (${m.items_with_comps}/${m.total_items})`);
+  console.log(`  Strategy distribution:`);
+  console.log(`    UPC:          ${m.strategy_distribution.upc}`);
+  console.log(`    LLM:          ${m.strategy_distribution.llm}`);
+  console.log(`    LLM (broad):  ${m.strategy_distribution["llm-broad"]}`);
+  console.log(`    LLM (relaxed):${m.strategy_distribution["llm-relaxed"]}`);
+  console.log(`    None:         ${m.strategy_distribution.none}`);
+  console.log();
 }
 
 export function printSummaryTable(report: EvalReport): void {

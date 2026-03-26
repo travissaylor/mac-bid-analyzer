@@ -101,6 +101,7 @@ describe("toFixtureItem", () => {
       "description",
       "ebay_sold_median",
       "ebay_sold_count",
+      "ebay_search_query",
       "true_value",
     ]);
   });
