@@ -520,14 +520,16 @@ describe("plainText", () => {
 
 describe("telegramHtml", () => {
   describe("summary", () => {
-    test("contains bold tags around labels", () => {
+    test("contains key data with emoji markers", () => {
       const result = telegramHtml.summary!(makeDisplayData());
       expect(result).toContain("<b>MacBook Pro 16-inch</b>");
-      expect(result).toContain("<b>Lot:</b> 12345");
-      expect(result).toContain("<b>Current Bid:</b> $500.00");
-      expect(result).toContain("<b>Max Bid:</b> $1200.00");
-      expect(result).toContain("<b>Deal Score:</b> 58%");
-      expect(result).toContain("<b>Source:</b> blended");
+      expect(result).toContain("Lot: 12345");
+      expect(result).toContain("$500.00 (10 bids)");
+      expect(result).toContain("✅ Max Bid: <b>$1200.00</b>");
+      expect(result).toContain("Deal: 58%");
+      expect(result).toContain("Source: blended");
+      expect(result).toContain("📊 eBay:");
+      expect(result).toContain("🤖 AI:");
     });
 
     test("manual review in HTML", () => {
@@ -541,22 +543,34 @@ describe("telegramHtml", () => {
   });
 
   describe("detail", () => {
-    test("contains cost breakdown", () => {
+    test("contains cost section with emoji header", () => {
       const result = telegramHtml.detail!(makeDisplayData());
-      expect(result).toContain("<b>--- Cost Breakdown ---</b>");
+      expect(result).toContain("💵 <b>Costs</b>");
       expect(result).toContain("Blended: eBay $1800.00 + AI $1900.00");
-      expect(result).toContain("Location Cost: $5.00");
+      expect(result).toContain("Location: $5.00");
     });
 
-    test("contains recommendation section", () => {
+    test("contains recommendation section with emoji header", () => {
       const result = telegramHtml.detail!(makeDisplayData());
-      expect(result).toContain("<b>--- Recommendation ---</b>");
-      expect(result).toContain("<b>Max Bid:</b> $1200.00");
+      expect(result).toContain("✅ <b>Recommendation</b>");
+      expect(result).toContain("Max Bid: <b>$1200.00</b>");
     });
 
-    test("comparables use bullet points", () => {
+    test("comparables use bullet points with emoji header", () => {
       const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("📋 <b>Comparables</b>");
       expect(result).toContain("• MacBook Pro 16 M3 Pro: $1950.00");
+    });
+
+    test("contains eBay and AI sections with emoji headers", () => {
+      const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("📊 <b>eBay Data</b>");
+      expect(result).toContain("🤖 <b>AI Analysis</b>");
+    });
+
+    test("merges lot and condition on one line", () => {
+      const result = telegramHtml.detail!(makeDisplayData());
+      expect(result).toContain("Lot: 12345 · Like New");
     });
   });
 

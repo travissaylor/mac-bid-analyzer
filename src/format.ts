@@ -394,33 +394,33 @@ export const telegramHtml: ItemRenderer<string> = {
     const lines: string[] = [];
 
     lines.push(`<b>${escapeHtml(data.productName)}</b>`);
+    lines.push(`Lot: ${data.lotId} · ${escapeHtml(data.condition)}`);
+    lines.push(`📍 ${escapeHtml(data.auctionLocation || "Unknown")} · ${formatCurrency(data.currentBid)} (${data.totalBids} bids)`);
     lines.push("");
-    lines.push(`<b>Lot:</b> ${data.lotId}`);
-    lines.push(`<b>Condition:</b> ${escapeHtml(data.condition)}`);
-    lines.push(`<b>Location:</b> ${escapeHtml(data.auctionLocation || "Unknown")} (${escapeHtml(data.locationTier || "unknown")} tier)`);
-    lines.push(`<b>Current Bid:</b> ${formatCurrency(data.currentBid)} (${data.totalBids} bids)`);
 
     if (data.ebay) {
-      lines.push(`<b>eBay Median:</b> ${formatCurrency(data.ebay.median)} (${data.ebay.count} comps)`);
+      lines.push(`📊 eBay: ${formatCurrency(data.ebay.median)} (${data.ebay.count} comps)`);
     } else {
-      lines.push(`<b>eBay Comps:</b> None found`);
+      lines.push("📊 eBay: None found");
     }
 
     if (data.ai) {
-      lines.push(`<b>AI Estimate:</b> ${formatCurrency(data.ai.mid)} (confidence: ${data.ai.confidence ?? "N/A"})`);
+      lines.push(`🤖 AI: ${formatCurrency(data.ai.mid)} (confidence: ${data.ai.confidence ?? "N/A"})`);
     }
 
+    lines.push("");
     if (data.maxBid.type === "not_worth_it") {
-      lines.push(`<b>Max Bid:</b> ${formatCurrency(data.maxBid.amount)} — NOT WORTH IT`);
+      lines.push(`✅ Max Bid: <b>${formatCurrency(data.maxBid.amount)}</b> — NOT WORTH IT`);
     } else {
-      lines.push(`<b>Max Bid:</b> ${formatMaxBid(data.maxBid)}`);
+      lines.push(`✅ Max Bid: <b>${formatMaxBid(data.maxBid)}</b>`);
     }
 
+    const metaParts: string[] = [];
     if (data.dealScore !== null) {
-      lines.push(`<b>Deal Score:</b> ${formatDealScore(data.dealScore)}`);
+      metaParts.push(`Deal: ${formatDealScore(data.dealScore)}`);
     }
-
-    lines.push(`<b>Source:</b> ${escapeHtml(data.analysisSource)}`);
+    metaParts.push(`Source: ${escapeHtml(data.analysisSource)}`);
+    lines.push(metaParts.join(" · "));
 
     if (data.manualReview) {
       lines.push("");
@@ -434,17 +434,14 @@ export const telegramHtml: ItemRenderer<string> = {
     const lines: string[] = [];
 
     lines.push(`<b>${escapeHtml(data.productName)}</b>`);
-    lines.push("");
-    lines.push(`<b>Lot:</b> ${data.lotId}`);
-    lines.push(`<b>Condition:</b> ${escapeHtml(data.condition)}`);
-    lines.push(`<b>Location:</b> ${escapeHtml(data.auctionLocation || "Unknown")} (${escapeHtml(data.locationTier || "unknown")} tier)`);
-    lines.push(`<b>Current Bid:</b> ${formatCurrency(data.currentBid)} (${data.totalBids} bids)`);
+    lines.push(`Lot: ${data.lotId} · ${escapeHtml(data.condition)}`);
+    lines.push(`📍 ${escapeHtml(data.auctionLocation || "Unknown")} · ${formatCurrency(data.currentBid)} (${data.totalBids} bids)`);
 
     // eBay section
     lines.push("");
-    lines.push("<b>--- eBay Data ---</b>");
+    lines.push("📊 <b>eBay Data</b>");
     if (data.ebay) {
-      lines.push(`Low: ${formatCurrency(data.ebay.low)} | Mid: ${formatCurrency(data.ebay.median)} | High: ${formatCurrency(data.ebay.high)}`);
+      lines.push(`${formatCurrency(data.ebay.low)} | ${formatCurrency(data.ebay.median)} | ${formatCurrency(data.ebay.high)}`);
       lines.push(`Comps: ${data.ebay.count}`);
     } else {
       lines.push("No eBay comps found.");
@@ -452,19 +449,19 @@ export const telegramHtml: ItemRenderer<string> = {
 
     // AI section
     lines.push("");
-    lines.push("<b>--- AI Analysis ---</b>");
+    lines.push("🤖 <b>AI Analysis</b>");
     if (data.ai) {
-      lines.push(`Low: ${formatCurrency(data.ai.low)} | Mid: ${formatCurrency(data.ai.mid)} | High: ${formatCurrency(data.ai.high)}`);
+      lines.push(`${formatCurrency(data.ai.low)} — ${formatCurrency(data.ai.mid)} — ${formatCurrency(data.ai.high)}`);
       if (data.ai.confidence !== null) {
         lines.push(`Confidence: ${data.ai.confidence}/100`);
       }
       if (data.ai.reasoning) {
         lines.push("");
-        lines.push(`<b>Reasoning:</b> ${escapeHtml(data.ai.reasoning)}`);
+        lines.push(`💬 ${escapeHtml(data.ai.reasoning)}`);
       }
       if (data.ai.comparables.length > 0) {
         lines.push("");
-        lines.push("<b>Comparables:</b>");
+        lines.push("📋 <b>Comparables</b>");
         for (const comp of data.ai.comparables) {
           lines.push(`  • ${escapeHtml(comp.name)}: ${formatCurrency(comp.estimatedPrice)}`);
         }
@@ -475,31 +472,35 @@ export const telegramHtml: ItemRenderer<string> = {
 
     // Cost breakdown
     lines.push("");
-    lines.push("<b>--- Cost Breakdown ---</b>");
+    lines.push("💵 <b>Costs</b>");
     if (data.blend) {
       lines.push(`Blended: eBay ${formatCurrency(data.blend.ebayMedian)} + AI ${formatCurrency(data.blend.aiMid)}`);
     } else if (data.analysisSource === "ebay-only" && data.ebay) {
-      lines.push(`Base Estimate (eBay): ${formatCurrency(data.ebay.median)}`);
+      lines.push(`Base: ${formatCurrency(data.ebay.median)} (eBay)`);
     } else if (data.analysisSource === "ai-only" && data.ai) {
-      lines.push(`Base Estimate (AI): ${formatCurrency(data.ai.mid)}`);
+      lines.push(`Base: ${formatCurrency(data.ai.mid)} (AI)`);
     }
+    const costParts: string[] = [];
     if (data.salesTaxRate !== null) {
-      lines.push(`Sales Tax Rate: ${(data.salesTaxRate * 100).toFixed(1)}%`);
+      costParts.push(`Tax: ${(data.salesTaxRate * 100).toFixed(1)}%`);
     }
-    lines.push(`Location Cost: ${formatCurrency(data.locationCost)}`);
+    costParts.push(`Location: ${formatCurrency(data.locationCost)}`);
+    lines.push(costParts.join(" · "));
 
     // Recommendation
     lines.push("");
-    lines.push("<b>--- Recommendation ---</b>");
+    lines.push("✅ <b>Recommendation</b>");
     if (data.maxBid.type === "not_worth_it") {
-      lines.push(`<b>Max Bid:</b> ${formatCurrency(data.maxBid.amount)} — NOT WORTH IT`);
+      lines.push(`Max Bid: <b>${formatCurrency(data.maxBid.amount)}</b> — NOT WORTH IT`);
     } else {
-      lines.push(`<b>Max Bid:</b> ${formatMaxBid(data.maxBid)}`);
+      lines.push(`Max Bid: <b>${formatMaxBid(data.maxBid)}</b>`);
     }
+    const recParts: string[] = [];
     if (data.dealScore !== null) {
-      lines.push(`<b>Deal Score:</b> ${formatDealScore(data.dealScore)}`);
+      recParts.push(`Deal Score: ${formatDealScore(data.dealScore)}`);
     }
-    lines.push(`<b>Source:</b> ${escapeHtml(data.analysisSource)}`);
+    recParts.push(`Source: ${escapeHtml(data.analysisSource)}`);
+    lines.push(recParts.join(" · "));
 
     if (data.manualReview) {
       lines.push("");
