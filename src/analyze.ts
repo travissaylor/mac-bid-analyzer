@@ -4,6 +4,7 @@ import { openDatabase, getItemByLotId, upsertAnalyzedItem } from "./db";
 import { searchEbay } from "./ebay";
 import { loadBuildings, getLocationInfo } from "./location";
 import { parseModelString, getApiKeyForProvider, createProvider } from "./llm/index";
+import { generateSearchQuerySafe } from "./llm/search-query";
 import type { LocationInfo } from "./location";
 import type { EbayPriceResult } from "./ebay";
 
@@ -266,6 +267,22 @@ export async function analyzeItem(
       manualReviewReason = `Condition "${lot.condition}" requires manual review`;
     }
 
+    // Generate optimized search query using LLM
+    const { query: searchQuery, source: querySource } = await generateSearchQuerySafe(
+      {
+        productName: lot.product_name,
+        description: lot.description,
+        upc: lot.upc,
+        category: lot.category,
+        condition: lot.condition,
+      },
+      config.llm_model,
+      config.env,
+    );
+    if (querySource === "llm") {
+      log(`LLM search query: "${searchQuery}"`);
+    }
+
     // Run eBay search and LLM estimate independently
     log(`Searching eBay for comps...`);
     let ebayResult: EbayPriceResult | null = null;
@@ -274,7 +291,7 @@ export async function analyzeItem(
         config.env.ebayAppId,
         config.env.ebayAppSecret,
         lot.upc,
-        lot.product_name,
+        searchQuery,
         lot.condition
       );
     } catch (err) {
