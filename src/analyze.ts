@@ -5,8 +5,17 @@ import { searchEbay } from "./ebay";
 import { loadBuildings, getLocationInfo } from "./location";
 import { parseModelString, getApiKeyForProvider, createProvider } from "./llm/index";
 import { generateSearchQuerySafe } from "./llm/search-query";
+import { calculateImagePenalty } from "./llm/image-prompt";
+import type { ImageAnalysisResult, ImageFinding } from "./llm/image-prompt";
 import type { LocationInfo } from "./location";
 import type { EbayPriceResult, CascadeResult } from "./ebay";
+
+/** Summarize image findings into a concise string for LLM context and review reasons. */
+function summarizeImageFindings(findings: ImageFinding[]): string {
+  return findings
+    .map(f => `[${f.severity.toUpperCase()}] ${f.type}: ${f.description}`)
+    .join("\n");
+}
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -321,6 +330,42 @@ export async function analyzeItem(
       manualReviewReason = `Condition "${lot.condition}" requires manual review`;
     }
 
+    // Parse LLM provider config (needed for both image analysis and price estimation)
+    const { provider: providerName, model: modelName } = parseModelString(config.llm_model);
+    const apiKey = getApiKeyForProvider(providerName, config.env);
+
+    // Run image analysis (before price estimation so findings can inform it)
+    let imageAnalysisResult: ImageAnalysisResult | null = null;
+    let imageRedFlagsSummary: string | null = null;
+
+    if (!lot.stock_image_only && apiKey) {
+      log(`Analyzing ${lot.image_urls.length} product image(s) for red flags...`);
+      try {
+        const provider = await createProvider(providerName, modelName, apiKey);
+        imageAnalysisResult = await provider.analyzeImages({
+          productName: lot.product_name,
+          condition: lot.condition,
+          category: lot.category,
+          imageUrls: lot.image_urls,
+        });
+
+        // If LLM says all images are stock/generic, treat as skipped
+        if (imageAnalysisResult.stockImageOnly) {
+          log(`Image analysis: LLM determined all images are stock/generic — skipping.`);
+          imageAnalysisResult = null;
+        } else if (imageAnalysisResult.findings.length > 0) {
+          imageRedFlagsSummary = summarizeImageFindings(imageAnalysisResult.findings);
+          log(`Image analysis: ${imageAnalysisResult.findings.length} finding(s), risk=${imageAnalysisResult.overallRisk}`);
+        } else {
+          log(`Image analysis: No red flags found.`);
+        }
+      } catch (err) {
+        log(`Warning: Image analysis failed: ${(err as Error).message}`);
+      }
+    } else if (lot.stock_image_only) {
+      log(`Stock image only — skipping image analysis.`);
+    }
+
     // Generate optimized search query using LLM
     const { query: searchQuery, source: querySource } = await generateSearchQuerySafe(
       {
@@ -371,9 +416,6 @@ export async function analyzeItem(
     let llmReasoning: string | null = null;
     let llmComparables: string | null = null;
 
-    const { provider: providerName, model: modelName } = parseModelString(config.llm_model);
-    const apiKey = getApiKeyForProvider(providerName, config.env);
-
     if (apiKey) {
       log(`Running ${providerName} estimate (${modelName})...`);
       try {
@@ -390,6 +432,7 @@ export async function analyzeItem(
           ebaySearchQuery: ebayResult?.searchQuery ?? null,
           ebaySearchStrategy: ebayResult?.strategy ?? null,
           ebayFiltersRelaxed: filtersRelaxed || null,
+          imageRedFlags: imageRedFlagsSummary,
         });
 
         llmEstimateLow = llmResult.low;
@@ -405,6 +448,27 @@ export async function analyzeItem(
       }
     } else {
       log(`Warning: No API key found for ${providerName} — skipping AI estimation`);
+    }
+
+    // Apply image analysis confidence penalties
+    if (imageAnalysisResult && imageAnalysisResult.findings.length > 0 && llmConfidence !== null) {
+      const penalty = calculateImagePenalty(imageAnalysisResult.findings);
+      const adjusted = Math.max(0, llmConfidence + penalty);
+      log(`Image penalty: ${penalty} (confidence ${llmConfidence} → ${adjusted})`);
+      llmConfidence = adjusted;
+
+      // Flag for manual review with finding summary
+      const topFindings = imageAnalysisResult.findings
+        .filter(f => f.severity === "high" || f.severity === "medium")
+        .slice(0, 3)
+        .map(f => `${f.severity}: ${f.description}`)
+        .join("; ");
+      const reviewReason = `Image red flags detected: ${topFindings || imageRedFlagsSummary}`;
+      if (!manualReviewReason) {
+        manualReviewReason = reviewReason;
+      } else {
+        manualReviewReason += ` | ${reviewReason}`;
+      }
     }
 
     // Calculate max bid

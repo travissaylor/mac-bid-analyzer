@@ -27,6 +27,8 @@ export interface LLMInput {
   ebaySearchQuery: string | null;
   ebaySearchStrategy: string | null;
   ebayFiltersRelaxed: boolean | null;
+  /** Summary of image red flags to include as context for the price estimate. */
+  imageRedFlags?: string | null;
 }
 
 export interface LLMProvider {

@@ -60,6 +60,7 @@ export function buildUserPrompt(input: LLMInput): string {
     input.description ? `Description: ${input.description}` : null,
     ebayLine,
     ...provenanceLines,
+    input.imageRedFlags ? `\nImage Analysis Red Flags:\n${input.imageRedFlags}\nFactor these physical condition issues into your estimate — they may reduce the selling price.` : null,
   ].filter(Boolean).join("\n");
 }
 
