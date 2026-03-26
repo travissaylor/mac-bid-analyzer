@@ -1,3 +1,5 @@
+import type { ImageAnalysisInput, ImageAnalysisResult } from "./image-prompt";
+
 export interface LLMComparable {
   name: string;
   estimatedPrice: number;
@@ -29,6 +31,7 @@ export interface LLMInput {
 
 export interface LLMProvider {
   estimate(input: LLMInput): Promise<LLMEstimate>;
+  analyzeImages(input: ImageAnalysisInput): Promise<ImageAnalysisResult>;
 }
 
 /**
