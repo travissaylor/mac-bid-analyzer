@@ -110,6 +110,10 @@ export interface MacBidLotItem {
   category: string | null;
   description: string | null;
   image_url: string | null;
+  /** All image URLs extracted from SSR data. First is stock, rest are actual product photos. */
+  image_urls: string[];
+  /** True when only the stock image is available (no actual product photos). */
+  stock_image_only: boolean;
   building_id: number | null;
   current_location_id: number | null;
   location: string | null;
@@ -122,11 +126,58 @@ export interface MacBidLotItem {
 
 const MACBID_LOT_URL = "https://api.macdiscount.com/map-bid/ddb/lot";
 
+/** Known SSR field names that may contain an array of image URLs. */
+const IMAGE_ARRAY_FIELDS = ["images", "product_images", "gallery", "photos", "lot_images", "image_urls"];
+
+/**
+ * Extract all image URLs from SSR/API data.
+ * Searches known array fields, then falls back to the single image_url/stock_image_url.
+ * Returns a deduplicated array of URL strings.
+ */
+export function extractImageUrls(data: Record<string, unknown>): string[] {
+  const urls: string[] = [];
+
+  // Try known array fields first
+  for (const field of IMAGE_ARRAY_FIELDS) {
+    const value = data[field];
+    if (Array.isArray(value) && value.length > 0) {
+      for (const item of value) {
+        if (typeof item === "string" && item.length > 0) {
+          urls.push(item);
+        } else if (item && typeof item === "object") {
+          // Handle objects like { url: "..." } or { src: "..." } or { image_url: "..." }
+          const obj = item as Record<string, unknown>;
+          const candidate = (obj.url ?? obj.src ?? obj.image_url ?? obj.href) as string | undefined;
+          if (typeof candidate === "string" && candidate.length > 0) {
+            urls.push(candidate);
+          }
+        }
+      }
+      if (urls.length > 0) break;
+    }
+  }
+
+  // Fall back to single image fields
+  if (urls.length === 0) {
+    const primary = data.image_url as string | undefined;
+    const stock = data.stock_image_url as string | undefined;
+    if (typeof primary === "string" && primary.length > 0) {
+      urls.push(primary);
+    } else if (typeof stock === "string" && stock.length > 0) {
+      urls.push(stock);
+    }
+  }
+
+  // Deduplicate while preserving order
+  return [...new Set(urls)];
+}
+
 function parseLotData(data: Record<string, unknown>, lotId: number): MacBidLotItem {
   // building_id may be nested inside auction object (SSR data)
   const auction = data.auction as Record<string, unknown> | undefined;
   const buildingId = (data.building_id ?? auction?.building_id ?? null) as number | null;
   const locationName = (data.location ?? data.auction_location ?? auction?.location_name ?? null) as string | null;
+  const imageUrls = extractImageUrls(data);
 
   return {
     id: (data.id ?? data.lot_id ?? lotId) as number,
@@ -139,6 +190,8 @@ function parseLotData(data: Record<string, unknown>, lotId: number): MacBidLotIt
     category: (data.category ?? data.category_name ?? null) as string | null,
     description: (data.description ?? null) as string | null,
     image_url: (data.image_url ?? data.stock_image_url ?? null) as string | null,
+    image_urls: imageUrls,
+    stock_image_only: imageUrls.length <= 1,
     building_id: buildingId,
     current_location_id: (data.current_location_id ?? data.location_id ?? null) as number | null,
     location: locationName,

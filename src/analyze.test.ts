@@ -7,6 +7,7 @@ import {
   blendEstimates,
   analyzeItem,
   fetchLotItem,
+  extractImageUrls,
 } from "./analyze";
 import { openDatabase, getItemByLotId } from "./db";
 import type { AppConfig } from "./config";
@@ -840,6 +841,218 @@ describe("analyze", () => {
       } finally {
         process.cwd = origCwd;
       }
+    });
+  });
+
+  describe("extractImageUrls", () => {
+    it("should extract URLs from 'images' array of strings", () => {
+      const data = {
+        images: [
+          "https://media.mac.bid/stock.jpg",
+          "https://media.mac.bid/photo1.jpg",
+          "https://media.mac.bid/photo2.jpg",
+        ],
+      };
+      expect(extractImageUrls(data)).toEqual([
+        "https://media.mac.bid/stock.jpg",
+        "https://media.mac.bid/photo1.jpg",
+        "https://media.mac.bid/photo2.jpg",
+      ]);
+    });
+
+    it("should extract URLs from 'images' array of objects with url field", () => {
+      const data = {
+        images: [
+          { url: "https://media.mac.bid/stock.jpg" },
+          { url: "https://media.mac.bid/photo1.jpg" },
+        ],
+      };
+      expect(extractImageUrls(data)).toEqual([
+        "https://media.mac.bid/stock.jpg",
+        "https://media.mac.bid/photo1.jpg",
+      ]);
+    });
+
+    it("should extract URLs from 'images' array of objects with src field", () => {
+      const data = {
+        images: [
+          { src: "https://media.mac.bid/stock.jpg" },
+        ],
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/stock.jpg"]);
+    });
+
+    it("should extract URLs from 'product_images' field", () => {
+      const data = {
+        product_images: ["https://media.mac.bid/img1.jpg", "https://media.mac.bid/img2.jpg"],
+      };
+      expect(extractImageUrls(data)).toEqual([
+        "https://media.mac.bid/img1.jpg",
+        "https://media.mac.bid/img2.jpg",
+      ]);
+    });
+
+    it("should extract URLs from 'gallery' field", () => {
+      const data = {
+        gallery: ["https://media.mac.bid/g1.jpg"],
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/g1.jpg"]);
+    });
+
+    it("should fall back to single image_url when no array field exists", () => {
+      const data = {
+        image_url: "https://media.mac.bid/stock.jpg",
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/stock.jpg"]);
+    });
+
+    it("should fall back to stock_image_url when image_url is absent", () => {
+      const data = {
+        stock_image_url: "https://media.mac.bid/stock.jpg",
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/stock.jpg"]);
+    });
+
+    it("should return empty array when no image fields exist", () => {
+      expect(extractImageUrls({})).toEqual([]);
+    });
+
+    it("should deduplicate URLs", () => {
+      const data = {
+        images: [
+          "https://media.mac.bid/same.jpg",
+          "https://media.mac.bid/same.jpg",
+          "https://media.mac.bid/other.jpg",
+        ],
+      };
+      expect(extractImageUrls(data)).toEqual([
+        "https://media.mac.bid/same.jpg",
+        "https://media.mac.bid/other.jpg",
+      ]);
+    });
+
+    it("should skip empty strings in array", () => {
+      const data = {
+        images: ["https://media.mac.bid/stock.jpg", "", "https://media.mac.bid/photo.jpg"],
+      };
+      expect(extractImageUrls(data)).toEqual([
+        "https://media.mac.bid/stock.jpg",
+        "https://media.mac.bid/photo.jpg",
+      ]);
+    });
+
+    it("should prefer array field over single image_url", () => {
+      const data = {
+        images: ["https://media.mac.bid/from-array.jpg"],
+        image_url: "https://media.mac.bid/single.jpg",
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/from-array.jpg"]);
+    });
+
+    it("should skip empty arrays and fall back to single field", () => {
+      const data = {
+        images: [],
+        image_url: "https://media.mac.bid/fallback.jpg",
+      };
+      expect(extractImageUrls(data)).toEqual(["https://media.mac.bid/fallback.jpg"]);
+    });
+  });
+
+  describe("fetchLotItem image_urls", () => {
+    beforeEach(() => {
+      restoreFetch();
+    });
+
+    afterEach(() => {
+      restoreFetch();
+    });
+
+    it("should populate image_urls and stock_image_only from SSR data with multiple images", async () => {
+      const ssrData = {
+        id: 12345,
+        auction_id: 100,
+        lot_number: "42",
+        product_name: "Test Widget",
+        condition: "OPEN BOX",
+        building_id: 15,
+        current_bid: 5.00,
+        is_open: true,
+        total_bids: 3,
+        watchers_count: 7,
+        images: [
+          "https://media.mac.bid/stock.jpg",
+          "https://media.mac.bid/photo1.jpg",
+          "https://media.mac.bid/photo2.jpg",
+        ],
+      };
+
+      const lot = await fetchLotItem(12345, ssrData);
+      expect(lot.image_urls).toEqual([
+        "https://media.mac.bid/stock.jpg",
+        "https://media.mac.bid/photo1.jpg",
+        "https://media.mac.bid/photo2.jpg",
+      ]);
+      expect(lot.stock_image_only).toBe(false);
+    });
+
+    it("should mark stock_image_only when only one image exists", async () => {
+      const ssrData = {
+        id: 12345,
+        auction_id: 100,
+        lot_number: "42",
+        product_name: "Test Widget",
+        condition: "OPEN BOX",
+        building_id: 15,
+        current_bid: 5.00,
+        is_open: true,
+        total_bids: 3,
+        watchers_count: 7,
+        image_url: "https://media.mac.bid/stock.jpg",
+      };
+
+      const lot = await fetchLotItem(12345, ssrData);
+      expect(lot.image_urls).toEqual(["https://media.mac.bid/stock.jpg"]);
+      expect(lot.stock_image_only).toBe(true);
+    });
+
+    it("should mark stock_image_only when no images exist", async () => {
+      const ssrData = {
+        id: 12345,
+        auction_id: 100,
+        lot_number: "42",
+        product_name: "Test Widget",
+        condition: "OPEN BOX",
+        building_id: 15,
+        current_bid: 5.00,
+        is_open: true,
+        total_bids: 3,
+        watchers_count: 7,
+      };
+
+      const lot = await fetchLotItem(12345, ssrData);
+      expect(lot.image_urls).toEqual([]);
+      expect(lot.stock_image_only).toBe(true);
+    });
+
+    it("should populate image_urls from DDB endpoint data", async () => {
+      mockFetch(async () => {
+        return new Response(JSON.stringify({
+          id: 12345,
+          auction_id: 100,
+          lot_number: "42",
+          product_name: "Test Widget",
+          condition: "OPEN BOX",
+          stock_image_url: "https://media.mac.bid/stock.jpg",
+          current_bid: 5.00,
+          is_open: true,
+          total_bids: 3,
+          watchers_count: 7,
+        }));
+      });
+
+      const lot = await fetchLotItem(12345);
+      expect(lot.image_urls).toEqual(["https://media.mac.bid/stock.jpg"]);
+      expect(lot.stock_image_only).toBe(true);
     });
   });
 
