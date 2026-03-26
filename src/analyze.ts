@@ -6,7 +6,7 @@ import { loadBuildings, getLocationInfo } from "./location";
 import { parseModelString, getApiKeyForProvider, createProvider } from "./llm/index";
 import { generateSearchQuerySafe } from "./llm/search-query";
 import type { LocationInfo } from "./location";
-import type { EbayPriceResult } from "./ebay";
+import type { EbayPriceResult, CascadeResult } from "./ebay";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -283,17 +283,20 @@ export async function analyzeItem(
       log(`LLM search query: "${searchQuery}"`);
     }
 
-    // Run eBay search and LLM estimate independently
+    // Run eBay search with cascade strategy
     log(`Searching eBay for comps...`);
+    let cascadeResult: CascadeResult | null = null;
     let ebayResult: EbayPriceResult | null = null;
     try {
-      ebayResult = await searchEbay(
+      cascadeResult = await searchEbay(
         config.env.ebayAppId,
         config.env.ebayAppSecret,
         lot.upc,
         searchQuery,
-        lot.condition
+        lot.condition,
+        { minComps: config.min_ebay_comps, logger: log },
       );
+      ebayResult = cascadeResult?.result ?? null;
     } catch (err) {
       log(`Warning: eBay search failed: ${(err as Error).message}`);
     }
