@@ -303,6 +303,10 @@ export async function analyzeItem(
 
     const ebayCount = ebayResult?.count ?? 0;
     const ebayMedian = ebayResult?.median ?? 0;
+    const filtersRelaxed = cascadeResult?.filtersRelaxed ?? false;
+    if (filtersRelaxed) {
+      log(`eBay results came from relaxed condition filters — comps may include mixed conditions.`);
+    }
 
     // Run LLM estimate when API key is available for the configured provider
     let llmEstimateLow: number | null = null;

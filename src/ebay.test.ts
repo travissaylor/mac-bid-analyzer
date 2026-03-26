@@ -477,22 +477,96 @@ describe("ebay", () => {
       expect(result.result.count).toBe(7);
     });
 
-    it("should return best result when all steps are insufficient", async () => {
+    it("should fall through to relaxed filters when all strict steps are insufficient", async () => {
+      let callNum = 0;
+      mockFetch(async () => {
+        callNum++;
+        if (callNum <= 3) {
+          // UPC, LLM, and broad - all insufficient
+          return new Response(
+            JSON.stringify({ total: 1, itemSummaries: [{ price: { value: "50.00" } }] }),
+            { status: 200 }
+          );
+        }
+        // Relaxed filter step - sufficient
+        return new Response(
+          JSON.stringify({
+            total: 8,
+            itemSummaries: Array(8).fill({ price: { value: "48.00" } }),
+          }),
+          { status: 200 }
+        );
+      });
+
+      const logs: string[] = [];
+      const result = await searchEbayCascade(
+        { token: "tok", upc: "012345678901", llmQuery: "Apple MacBook Pro 14 M3", condition: "NEW", minComps: 5 },
+        (msg) => logs.push(msg),
+      );
+      expect(result.cascadeDepth).toBe(4);
+      expect(result.filtersRelaxed).toBe(true);
+      expect(result.result.filtersRelaxed).toBe(true);
+      expect(result.result.count).toBe(8);
+      expect(result.result.searchQuery).toContain("llm-relaxed:");
+      expect(logs.some((l) => l.includes("step 4") && l.includes("sufficient"))).toBe(true);
+    });
+
+    it("should not try relaxed filters when condition has no filter", async () => {
+      let callNum = 0;
+      mockFetch(async () => {
+        callNum++;
+        return new Response(
+          JSON.stringify({ total: 1, itemSummaries: [{ price: { value: "50.00" } }] }),
+          { status: 200 }
+        );
+      });
+
+      const logs: string[] = [];
+      const result = await searchEbayCascade(
+        { token: "tok", upc: null, llmQuery: "Apple MacBook Pro 14 M3", condition: "USED", minComps: 5 },
+        (msg) => logs.push(msg),
+      );
+      // USED has no condition filter, so relaxed step is skipped
+      expect(result.filtersRelaxed).toBe(false);
+      expect(logs.every((l) => !l.includes("step 4"))).toBe(true);
+    });
+
+    it("should return best result when all steps including relaxed are insufficient", async () => {
       let callNum = 0;
       mockFetch(async () => {
         callNum++;
         if (callNum === 1) return new Response(JSON.stringify({ total: 1, itemSummaries: [{ price: { value: "50.00" } }] }), { status: 200 });
         if (callNum === 2) return new Response(JSON.stringify({ total: 3, itemSummaries: [{ price: { value: "40.00" } }, { price: { value: "50.00" } }, { price: { value: "60.00" } }] }), { status: 200 });
-        // Broad query
-        return new Response(JSON.stringify({ total: 2, itemSummaries: [{ price: { value: "45.00" } }, { price: { value: "55.00" } }] }), { status: 200 });
+        if (callNum === 3) return new Response(JSON.stringify({ total: 2, itemSummaries: [{ price: { value: "45.00" } }, { price: { value: "55.00" } }] }), { status: 200 });
+        // Relaxed - still insufficient but more than broad
+        return new Response(JSON.stringify({ total: 4, itemSummaries: [{ price: { value: "42.00" } }, { price: { value: "48.00" } }, { price: { value: "52.00" } }, { price: { value: "58.00" } }] }), { status: 200 });
       });
 
       const result = await searchEbayCascade(
         { token: "tok", upc: "012345678901", llmQuery: "Apple MacBook Pro 14 M3", condition: "NEW", minComps: 5 },
       );
-      // Best result is from LLM query with 3 comps
-      expect(result.result.count).toBe(3);
-      expect(result.result.strategy).toBe("llm");
+      // Best result is from relaxed step with 4 comps
+      expect(result.result.count).toBe(4);
+      expect(result.filtersRelaxed).toBe(true);
+      expect(result.result.filtersRelaxed).toBe(true);
+    });
+
+    it("should set filtersRelaxed to false when strict filters succeed", async () => {
+      mockFetch(async () => {
+        return new Response(
+          JSON.stringify({
+            total: 5,
+            itemSummaries: Array(5).fill({ price: { value: "50.00" } }),
+          }),
+          { status: 200 }
+        );
+      });
+
+      const result = await searchEbayCascade(
+        { token: "tok", upc: "012345678901", llmQuery: "Ninja Blender", condition: "NEW", minComps: 5 },
+      );
+      expect(result.filtersRelaxed).toBe(false);
+      expect(result.result.filtersRelaxed).toBe(false);
     });
 
     it("should record strategy label with prefix in searchQuery", async () => {

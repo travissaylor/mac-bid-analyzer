@@ -10,6 +10,7 @@ export interface EbayPriceResult {
   count: number;
   searchQuery: string;
   strategy: SearchStrategy;
+  filtersRelaxed: boolean;
 }
 
 interface CachedToken {
@@ -136,6 +137,7 @@ export async function searchEbayWithQuery(
       count: 0,
       searchQuery: options.strategyLabel,
       strategy: options.strategy,
+      filtersRelaxed: false,
     };
   }
 
@@ -148,6 +150,7 @@ export async function searchEbayWithQuery(
     count: prices.length,
     searchQuery: options.strategyLabel,
     strategy: options.strategy,
+    filtersRelaxed: false,
   };
 }
 
@@ -198,11 +201,13 @@ export interface CascadeOptions {
 export interface CascadeResult {
   result: EbayPriceResult;
   cascadeDepth: number;
+  filtersRelaxed: boolean;
 }
 
 /**
  * Try progressively broader eBay searches until min_ebay_comps is met.
- * Cascade order: (1) UPC/GTIN, (2) LLM query, (3) Broadened LLM query.
+ * Cascade order: (1) UPC/GTIN, (2) LLM query, (3) Broadened LLM query,
+ * (4) Best query without condition filters (relaxed).
  * Stops at the first step that meets the threshold.
  */
 export async function searchEbayCascade(
@@ -226,7 +231,7 @@ export async function searchEbayCascade(
     });
     if (result.count >= minComps) {
       logger(`Cascade step 1: found ${result.count} comps (sufficient)`);
-      return { result, cascadeDepth };
+      return { result, cascadeDepth, filtersRelaxed: false };
     }
     logger(`Cascade step 1: found ${result.count} comps (insufficient, need ${minComps})`);
     bestResult = result;
@@ -242,7 +247,7 @@ export async function searchEbayCascade(
   });
   if (llmResult.count >= minComps) {
     logger(`Cascade step 2: found ${llmResult.count} comps (sufficient)`);
-    return { result: llmResult, cascadeDepth };
+    return { result: llmResult, cascadeDepth, filtersRelaxed: false };
   }
   logger(`Cascade step 2: found ${llmResult.count} comps (insufficient, need ${minComps})`);
   if (!bestResult || llmResult.count > bestResult.count) {
@@ -261,7 +266,7 @@ export async function searchEbayCascade(
     });
     if (broadResult.count >= minComps) {
       logger(`Cascade step 3: found ${broadResult.count} comps (sufficient)`);
-      return { result: broadResult, cascadeDepth };
+      return { result: broadResult, cascadeDepth, filtersRelaxed: false };
     }
     logger(`Cascade step 3: found ${broadResult.count} comps (insufficient, need ${minComps})`);
     if (!bestResult || broadResult.count > bestResult.count) {
@@ -269,9 +274,34 @@ export async function searchEbayCascade(
     }
   }
 
+  // Step 4: Retry best query without condition filters (relaxed)
+  if (conditionFilter.ebayFilter !== null) {
+    cascadeDepth = 4;
+    // Use the LLM query (most specific non-UPC query) for the relaxed retry
+    const relaxedQuery = llmQuery;
+    const relaxedStrategy = bestResult!.strategy === "upc" ? "upc" : "llm";
+    const relaxedLabel = `llm-relaxed:${relaxedQuery}`;
+    logger(`Cascade step 4: relaxed filters "${relaxedQuery}"`);
+    const relaxedResult = await searchEbayWithQuery(token, relaxedQuery, {
+      conditionFilter: null,
+      strategy: relaxedStrategy,
+      strategyLabel: relaxedLabel,
+    });
+    relaxedResult.filtersRelaxed = true;
+    if (relaxedResult.count >= minComps) {
+      logger(`Cascade step 4: found ${relaxedResult.count} comps (sufficient, filters relaxed)`);
+      return { result: relaxedResult, cascadeDepth, filtersRelaxed: true };
+    }
+    logger(`Cascade step 4: found ${relaxedResult.count} comps (insufficient, need ${minComps})`);
+    if (!bestResult || relaxedResult.count > bestResult.count) {
+      bestResult = relaxedResult;
+    }
+  }
+
   // Return the best result we found across all steps
-  logger(`Cascade exhausted: returning best result with ${bestResult!.count} comps`);
-  return { result: bestResult!, cascadeDepth };
+  const relaxed = bestResult!.filtersRelaxed;
+  logger(`Cascade exhausted: returning best result with ${bestResult!.count} comps${relaxed ? " (filters relaxed)" : ""}`);
+  return { result: bestResult!, cascadeDepth, filtersRelaxed: relaxed };
 }
 
 function buildFilter(isNameSearch: boolean, conditionFilter: string | null): string {
