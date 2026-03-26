@@ -67,12 +67,13 @@ export interface ResolvedLot {
  * Returns both the ID and the full SSR lot data when available.
  */
 export async function resolveLotId(input: string | number): Promise<ResolvedLot> {
-  if (typeof input === "number") {
-    return { lotId: input };
-  }
+  // Convert numeric ID to permalink URL so we always get SSR data
+  const rawInput = typeof input === "number"
+    ? `https://www.mac.bid/lot/${input}`
+    : input;
 
-  // It's a URL — fetch the page and extract from __NEXT_DATA__
-  const url = input.startsWith("http") ? input : `https://www.mac.bid${input.startsWith("/") ? "" : "/"}${input}`;
+  // Fetch the page and extract from __NEXT_DATA__
+  const url = rawInput.startsWith("http") ? rawInput : `https://www.mac.bid${rawInput.startsWith("/") ? "" : "/"}${rawInput}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch lot page: ${response.status} ${response.statusText}`);
