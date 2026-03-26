@@ -38,6 +38,9 @@ export interface AnalyzedItem {
   location_cost: number;
   location_tier: string | null;
   deal_score: number | null;
+  image_flags: string | null;
+  image_risk_score: number | null;
+  image_analysis_skipped: number | null;
   needs_manual_review: number;
   manual_review_reason: string | null;
   analyzed_at: string;
@@ -86,6 +89,9 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
   location_cost     REAL DEFAULT 0,
   location_tier     TEXT,
   deal_score        REAL,
+  image_flags       TEXT,
+  image_risk_score  REAL,
+  image_analysis_skipped INTEGER,
   needs_manual_review INTEGER NOT NULL DEFAULT 0,
   manual_review_reason TEXT,
 
@@ -108,6 +114,9 @@ function migrateSchema(db: Database): void {
     ["llm_confidence", "ALTER TABLE analyzed_items ADD COLUMN llm_confidence REAL"],
     ["llm_reasoning", "ALTER TABLE analyzed_items ADD COLUMN llm_reasoning TEXT"],
     ["llm_comparables", "ALTER TABLE analyzed_items ADD COLUMN llm_comparables TEXT"],
+    ["image_flags", "ALTER TABLE analyzed_items ADD COLUMN image_flags TEXT"],
+    ["image_risk_score", "ALTER TABLE analyzed_items ADD COLUMN image_risk_score REAL"],
+    ["image_analysis_skipped", "ALTER TABLE analyzed_items ADD COLUMN image_analysis_skipped INTEGER"],
   ];
 
   for (const [col, sql] of migrations) {
@@ -137,7 +146,8 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       llm_estimate_low, llm_estimate_mid, llm_estimate_high, llm_provider,
       llm_confidence, llm_reasoning, llm_comparables,
       recommended_max_bid, sales_tax_rate, location_cost, location_tier,
-      deal_score, needs_manual_review, manual_review_reason,
+      deal_score, image_flags, image_risk_score, image_analysis_skipped,
+      needs_manual_review, manual_review_reason,
       analyzed_at, analysis_source
     ) VALUES (
       $lot_id, $auction_id, $lot_number, $product_name, $upc, $condition,
@@ -148,7 +158,8 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       $llm_estimate_low, $llm_estimate_mid, $llm_estimate_high, $llm_provider,
       $llm_confidence, $llm_reasoning, $llm_comparables,
       $recommended_max_bid, $sales_tax_rate, $location_cost, $location_tier,
-      $deal_score, $needs_manual_review, $manual_review_reason,
+      $deal_score, $image_flags, $image_risk_score, $image_analysis_skipped,
+      $needs_manual_review, $manual_review_reason,
       $analyzed_at, $analysis_source
     ) ON CONFLICT(lot_id) DO UPDATE SET
       auction_id = excluded.auction_id,
@@ -186,6 +197,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       location_cost = excluded.location_cost,
       location_tier = excluded.location_tier,
       deal_score = excluded.deal_score,
+      image_flags = excluded.image_flags,
+      image_risk_score = excluded.image_risk_score,
+      image_analysis_skipped = excluded.image_analysis_skipped,
       needs_manual_review = excluded.needs_manual_review,
       manual_review_reason = excluded.manual_review_reason,
       analyzed_at = excluded.analyzed_at,
@@ -229,6 +243,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
     $location_cost: item.location_cost,
     $location_tier: item.location_tier,
     $deal_score: item.deal_score,
+    $image_flags: item.image_flags,
+    $image_risk_score: item.image_risk_score,
+    $image_analysis_skipped: item.image_analysis_skipped,
     $needs_manual_review: item.needs_manual_review,
     $manual_review_reason: item.manual_review_reason,
     $analyzed_at: item.analyzed_at,
