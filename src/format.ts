@@ -1,4 +1,5 @@
 import type { AnalyzedItem } from "./db";
+import type { ImageFinding } from "./llm/image-prompt";
 
 export interface ItemRenderer<T = string> {
   summary?(data: ItemDisplayData): T;
@@ -61,6 +62,11 @@ export interface ItemDisplayData {
   isDeal: boolean;
   isOverMax: boolean;
 
+  // Image analysis
+  imageFlags: ImageFinding[] | null;
+  imageRiskScore: number | null;
+  imageAnalysisSkipped: boolean;
+
   // Blended source info (for cost breakdown views)
   blend: { ebayMedian: number; aiMid: number } | null;
 }
@@ -118,6 +124,11 @@ export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
   const dealScore =
     item.deal_score !== null ? Math.round(item.deal_score) : null;
 
+  // Image flags
+  const imageFlags = parseImageFlags(item.image_flags);
+  const imageRiskScore = item.image_risk_score;
+  const imageAnalysisSkipped = item.image_analysis_skipped === 1;
+
   // Blended source info
   const blend =
     item.analysis_source === "blended" &&
@@ -146,6 +157,9 @@ export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
     manualReview,
     isDeal,
     isOverMax,
+    imageFlags,
+    imageRiskScore,
+    imageAnalysisSkipped,
     blend,
   };
 }
@@ -156,6 +170,31 @@ function parseComparables(json: string | null): Comparable[] {
     return JSON.parse(json);
   } catch {
     return [];
+  }
+}
+
+function parseImageFlags(json: string | null): ImageFinding[] | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatImageFlagsSummary(flags: ImageFinding[]): string {
+  return flags.map((f) => f.description).join(", ");
+}
+
+function severityLabel(severity: ImageFinding["severity"]): string {
+  switch (severity) {
+    case "high":
+      return "HIGH";
+    case "medium":
+      return "MED";
+    case "low":
+      return "LOW";
   }
 }
 
@@ -222,6 +261,12 @@ export const plainText: ItemRenderer<string> = {
 
     lines.push(`Source: ${data.analysisSource}`);
 
+    if (data.imageFlags) {
+      lines.push(`🔍 Image flags: ${formatImageFlagsSummary(data.imageFlags)}`);
+    } else if (data.imageAnalysisSkipped) {
+      lines.push("📷 No product photos available");
+    }
+
     if (data.manualReview) {
       lines.push("");
       lines.push(`⚠️ MANUAL REVIEW: ${data.manualReview.reason}`);
@@ -271,6 +316,20 @@ export const plainText: ItemRenderer<string> = {
       }
     } else {
       lines.push("No AI analysis available.");
+    }
+
+    // Image flags section
+    if (data.imageFlags) {
+      lines.push("");
+      lines.push("--- Image Flags ---");
+      lines.push(`Risk Score: ${data.imageRiskScore ?? "N/A"}/100`);
+      for (const flag of data.imageFlags) {
+        lines.push(`  [${severityLabel(flag.severity)}] ${flag.description}`);
+      }
+    } else if (data.imageAnalysisSkipped) {
+      lines.push("");
+      lines.push("--- Image Flags ---");
+      lines.push("No product photos available.");
     }
 
     // Cost breakdown
@@ -422,6 +481,12 @@ export const telegramHtml: ItemRenderer<string> = {
     metaParts.push(`Source: ${escapeHtml(data.analysisSource)}`);
     lines.push(metaParts.join(" · "));
 
+    if (data.imageFlags) {
+      lines.push(`🔍 Image flags: ${escapeHtml(formatImageFlagsSummary(data.imageFlags))}`);
+    } else if (data.imageAnalysisSkipped) {
+      lines.push("📷 No product photos available");
+    }
+
     if (data.manualReview) {
       lines.push("");
       lines.push(`⚠️ <b>MANUAL REVIEW:</b> ${escapeHtml(data.manualReview.reason)}`);
@@ -468,6 +533,20 @@ export const telegramHtml: ItemRenderer<string> = {
       }
     } else {
       lines.push("No AI analysis available.");
+    }
+
+    // Image flags section
+    if (data.imageFlags) {
+      lines.push("");
+      lines.push("🔍 <b>Image Flags</b>");
+      lines.push(`Risk Score: ${data.imageRiskScore ?? "N/A"}/100`);
+      for (const flag of data.imageFlags) {
+        lines.push(`  • [${severityLabel(flag.severity)}] ${escapeHtml(flag.description)}`);
+      }
+    } else if (data.imageAnalysisSkipped) {
+      lines.push("");
+      lines.push("🔍 <b>Image Flags</b>");
+      lines.push("No product photos available.");
     }
 
     // Cost breakdown

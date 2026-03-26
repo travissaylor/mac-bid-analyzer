@@ -250,6 +250,39 @@ describe("resolveDisplayData", () => {
     expect(data.blend).toBeNull();
   });
 
+  describe("image flags", () => {
+    test("parses image_flags JSON into imageFlags array", () => {
+      const flags = [
+        { type: "damage" as const, severity: "high" as const, description: "cracked", imageIndex: 1 },
+      ];
+      const data = resolveDisplayData(
+        makeItem({ image_flags: JSON.stringify(flags), image_risk_score: 60 }),
+      );
+      expect(data.imageFlags).toEqual(flags);
+      expect(data.imageRiskScore).toBe(60);
+    });
+
+    test("null image_flags -> imageFlags null", () => {
+      const data = resolveDisplayData(makeItem({ image_flags: null }));
+      expect(data.imageFlags).toBeNull();
+    });
+
+    test("empty array image_flags -> imageFlags null", () => {
+      const data = resolveDisplayData(makeItem({ image_flags: "[]" }));
+      expect(data.imageFlags).toBeNull();
+    });
+
+    test("image_analysis_skipped 1 -> true", () => {
+      const data = resolveDisplayData(makeItem({ image_analysis_skipped: 1 }));
+      expect(data.imageAnalysisSkipped).toBe(true);
+    });
+
+    test("image_analysis_skipped null -> false", () => {
+      const data = resolveDisplayData(makeItem({ image_analysis_skipped: null }));
+      expect(data.imageAnalysisSkipped).toBe(false);
+    });
+  });
+
   test("is_open 1 -> true, 0 -> false", () => {
     expect(resolveDisplayData(makeItem({ is_open: 1 })).isOpen).toBe(true);
     expect(resolveDisplayData(makeItem({ is_open: 0 })).isOpen).toBe(false);
@@ -297,6 +330,9 @@ function makeDisplayData(
     manualReview: null,
     isDeal: true,
     isOverMax: false,
+    imageFlags: null,
+    imageRiskScore: null,
+    imageAnalysisSkipped: false,
     blend: { ebayMedian: 1800, aiMid: 1900 },
     ...overrides,
   };
@@ -345,6 +381,32 @@ describe("plainText", () => {
         makeDisplayData({ maxBid: { type: "unavailable" } }),
       );
       expect(result).toContain("Max Bid: N/A");
+    });
+
+    test("shows image flags summary when present", () => {
+      const result = plainText.summary!(
+        makeDisplayData({
+          imageFlags: [
+            { type: "damage", severity: "high", description: "cracked screen", imageIndex: 1 },
+            { type: "missing_parts", severity: "low", description: "missing power cable", imageIndex: 2 },
+          ],
+          imageRiskScore: 65,
+        }),
+      );
+      expect(result).toContain("🔍 Image flags: cracked screen, missing power cable");
+    });
+
+    test("shows no product photos when analysis skipped", () => {
+      const result = plainText.summary!(
+        makeDisplayData({ imageAnalysisSkipped: true }),
+      );
+      expect(result).toContain("📷 No product photos available");
+    });
+
+    test("no image line when flags null and not skipped", () => {
+      const result = plainText.summary!(makeDisplayData());
+      expect(result).not.toContain("Image flags");
+      expect(result).not.toContain("No product photos");
     });
   });
 
@@ -419,6 +481,30 @@ describe("plainText", () => {
         }),
       );
       expect(result).toContain("Base Estimate (AI): $1900.00");
+    });
+
+    test("shows image flags breakdown with severity", () => {
+      const result = plainText.detail!(
+        makeDisplayData({
+          imageFlags: [
+            { type: "damage", severity: "high", description: "cracked screen", imageIndex: 1 },
+            { type: "missing_parts", severity: "medium", description: "missing charger", imageIndex: 2 },
+          ],
+          imageRiskScore: 70,
+        }),
+      );
+      expect(result).toContain("--- Image Flags ---");
+      expect(result).toContain("Risk Score: 70/100");
+      expect(result).toContain("[HIGH] cracked screen");
+      expect(result).toContain("[MED] missing charger");
+    });
+
+    test("shows skipped message in detail when no product photos", () => {
+      const result = plainText.detail!(
+        makeDisplayData({ imageAnalysisSkipped: true }),
+      );
+      expect(result).toContain("--- Image Flags ---");
+      expect(result).toContain("No product photos available.");
     });
   });
 
@@ -543,6 +629,25 @@ describe("telegramHtml", () => {
         "⚠️ <b>MANUAL REVIEW:</b> Check price",
       );
     });
+
+    test("shows image flags summary in HTML", () => {
+      const result = telegramHtml.summary!(
+        makeDisplayData({
+          imageFlags: [
+            { type: "damage", severity: "high", description: "cracked screen", imageIndex: 1 },
+          ],
+          imageRiskScore: 50,
+        }),
+      );
+      expect(result).toContain("🔍 Image flags: cracked screen");
+    });
+
+    test("shows no product photos when skipped in HTML", () => {
+      const result = telegramHtml.summary!(
+        makeDisplayData({ imageAnalysisSkipped: true }),
+      );
+      expect(result).toContain("📷 No product photos available");
+    });
   });
 
   describe("detail", () => {
@@ -574,6 +679,42 @@ describe("telegramHtml", () => {
     test("merges lot and condition on one line", () => {
       const result = telegramHtml.detail!(makeDisplayData());
       expect(result).toContain("Lot: 12345 · Like New");
+    });
+
+    test("shows image flags breakdown in detail", () => {
+      const result = telegramHtml.detail!(
+        makeDisplayData({
+          imageFlags: [
+            { type: "damage", severity: "high", description: "cracked screen", imageIndex: 1 },
+            { type: "mismatch", severity: "low", description: "color differs from listing", imageIndex: 3 },
+          ],
+          imageRiskScore: 55,
+        }),
+      );
+      expect(result).toContain("🔍 <b>Image Flags</b>");
+      expect(result).toContain("Risk Score: 55/100");
+      expect(result).toContain("[HIGH] cracked screen");
+      expect(result).toContain("[LOW] color differs from listing");
+    });
+
+    test("shows skipped in detail when no product photos", () => {
+      const result = telegramHtml.detail!(
+        makeDisplayData({ imageAnalysisSkipped: true }),
+      );
+      expect(result).toContain("🔍 <b>Image Flags</b>");
+      expect(result).toContain("No product photos available.");
+    });
+
+    test("escapes HTML in image flag descriptions", () => {
+      const result = telegramHtml.detail!(
+        makeDisplayData({
+          imageFlags: [
+            { type: "damage", severity: "high", description: "crack <visible> & deep", imageIndex: 1 },
+          ],
+          imageRiskScore: 80,
+        }),
+      );
+      expect(result).toContain("crack &lt;visible&gt; &amp; deep");
     });
   });
 
