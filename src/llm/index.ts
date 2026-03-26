@@ -22,6 +22,9 @@ export interface LLMInput {
   description: string | null;
   ebaySoldMedian: number | null;
   ebaySoldCount: number | null;
+  ebaySearchQuery: string | null;
+  ebaySearchStrategy: string | null;
+  ebayFiltersRelaxed: boolean | null;
 }
 
 export interface LLMProvider {

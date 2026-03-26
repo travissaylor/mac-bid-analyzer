@@ -11,6 +11,9 @@ const sampleInput: LLMInput = {
   description: "Professional blender",
   ebaySoldMedian: null,
   ebaySoldCount: null,
+  ebaySearchQuery: null,
+  ebaySearchStrategy: null,
+  ebayFiltersRelaxed: null,
 };
 
 describe("llm/prompt", () => {
@@ -35,6 +38,9 @@ describe("llm/prompt", () => {
         description: null,
         ebaySoldMedian: null,
         ebaySoldCount: null,
+        ebaySearchQuery: null,
+        ebaySearchStrategy: null,
+        ebayFiltersRelaxed: null,
       });
       expect(prompt).toContain("Widget");
       expect(prompt).toContain("NEW");
@@ -114,6 +120,70 @@ describe("llm/prompt", () => {
         ebaySoldCount: 5,
       });
       expect(prompt).toContain("eBay Comps: No completed sales found");
+    });
+
+    it("should include search provenance when eBay data is available", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 55.00,
+        ebaySoldCount: 8,
+        ebaySearchQuery: "llm:Ninja Blender NJ600",
+        ebaySearchStrategy: "llm",
+        ebayFiltersRelaxed: false,
+      });
+      expect(prompt).toContain("eBay Search Query: llm:Ninja Blender NJ600");
+      expect(prompt).toContain("eBay Search Method: matched by LLM-refined search query");
+      expect(prompt).not.toContain("filters were relaxed");
+    });
+
+    it("should include UPC strategy description", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 55.00,
+        ebaySoldCount: 8,
+        ebaySearchQuery: "upc:012345678901",
+        ebaySearchStrategy: "upc",
+        ebayFiltersRelaxed: false,
+      });
+      expect(prompt).toContain("eBay Search Method: matched by UPC/GTIN (high confidence)");
+    });
+
+    it("should include broad strategy description", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 55.00,
+        ebaySoldCount: 8,
+        ebaySearchQuery: "llm-broad:Ninja Blender",
+        ebaySearchStrategy: "llm-broad",
+        ebayFiltersRelaxed: false,
+      });
+      expect(prompt).toContain("eBay Search Method: matched by broadened fallback query (lower specificity)");
+    });
+
+    it("should include relaxed filters warning when filters were relaxed", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: 55.00,
+        ebaySoldCount: 8,
+        ebaySearchQuery: "llm-relaxed:Ninja Blender NJ600",
+        ebaySearchStrategy: "llm",
+        ebayFiltersRelaxed: true,
+      });
+      expect(prompt).toContain("Condition filters were relaxed");
+      expect(prompt).toContain("mixed conditions");
+    });
+
+    it("should not include provenance when no eBay data found", () => {
+      const prompt = buildUserPrompt({
+        ...sampleInput,
+        ebaySoldMedian: null,
+        ebaySoldCount: null,
+        ebaySearchQuery: "llm:Ninja Blender NJ600",
+        ebaySearchStrategy: "llm",
+        ebayFiltersRelaxed: false,
+      });
+      expect(prompt).not.toContain("eBay Search Query:");
+      expect(prompt).not.toContain("eBay Search Method:");
     });
   });
 

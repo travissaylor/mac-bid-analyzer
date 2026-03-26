@@ -100,6 +100,9 @@ function fixtureToLLMInput(item: AnnotatedFixtureItem): LLMInput {
     description: item.description,
     ebaySoldMedian: item.ebay_sold_median ?? null,
     ebaySoldCount: item.ebay_sold_count ?? null,
+    ebaySearchQuery: null,
+    ebaySearchStrategy: null,
+    ebayFiltersRelaxed: null,
   };
 }
 

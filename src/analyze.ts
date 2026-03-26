@@ -333,6 +333,9 @@ export async function analyzeItem(
           description: lot.description,
           ebaySoldMedian: ebayResult?.median ?? null,
           ebaySoldCount: ebayCount > 0 ? ebayCount : null,
+          ebaySearchQuery: ebayResult?.searchQuery ?? null,
+          ebaySearchStrategy: ebayResult?.strategy ?? null,
+          ebayFiltersRelaxed: filtersRelaxed || null,
         });
 
         llmEstimateLow = llmResult.low;

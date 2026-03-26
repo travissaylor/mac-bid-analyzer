@@ -43,6 +43,9 @@ const sampleInput: LLMInput = {
   description: "Professional blender",
   ebaySoldMedian: null,
   ebaySoldCount: null,
+  ebaySearchQuery: null,
+  ebaySearchStrategy: null,
+  ebayFiltersRelaxed: null,
 };
 
 describe("OpenAIProvider", () => {

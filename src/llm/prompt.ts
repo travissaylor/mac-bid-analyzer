@@ -24,10 +24,32 @@ Where:
 All price values should be in USD as numbers (no dollar signs).`;
 
 export function buildUserPrompt(input: LLMInput): string {
-  const ebayLine =
-    input.ebaySoldCount && input.ebaySoldCount > 0 && input.ebaySoldMedian && input.ebaySoldMedian > 0
-      ? `eBay Sold Median: $${input.ebaySoldMedian.toFixed(2)} (${input.ebaySoldCount} recent sales)`
-      : `eBay Comps: No completed sales found`;
+  const hasEbayData =
+    input.ebaySoldCount && input.ebaySoldCount > 0 && input.ebaySoldMedian && input.ebaySoldMedian > 0;
+
+  const ebayLine = hasEbayData
+    ? `eBay Sold Median: $${input.ebaySoldMedian!.toFixed(2)} (${input.ebaySoldCount} recent sales)`
+    : `eBay Comps: No completed sales found`;
+
+  // Build search provenance context when eBay data is available
+  const provenanceLines: string[] = [];
+  if (hasEbayData) {
+    if (input.ebaySearchQuery) {
+      provenanceLines.push(`eBay Search Query: ${input.ebaySearchQuery}`);
+    }
+    if (input.ebaySearchStrategy) {
+      const strategyDescriptions: Record<string, string> = {
+        upc: "matched by UPC/GTIN (high confidence)",
+        llm: "matched by LLM-refined search query",
+        "llm-broad": "matched by broadened fallback query (lower specificity)",
+      };
+      const desc = strategyDescriptions[input.ebaySearchStrategy] ?? input.ebaySearchStrategy;
+      provenanceLines.push(`eBay Search Method: ${desc}`);
+    }
+    if (input.ebayFiltersRelaxed) {
+      provenanceLines.push(`Note: Condition filters were relaxed — comps may include mixed conditions. Adjust confidence accordingly.`);
+    }
+  }
 
   return [
     `Product: ${input.productName}`,
@@ -37,6 +59,7 @@ export function buildUserPrompt(input: LLMInput): string {
     input.category ? `Category: ${input.category}` : null,
     input.description ? `Description: ${input.description}` : null,
     ebayLine,
+    ...provenanceLines,
   ].filter(Boolean).join("\n");
 }
 
