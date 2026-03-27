@@ -569,18 +569,21 @@ describe("plainText", () => {
       expect(result).toBe("No active items.");
     });
 
-    test("sorts by deal score descending, nulls last", () => {
+    test("sorts by expectedCloseDate ascending, nulls last with deal score fallback", () => {
       const items = [
-        makeDisplayData({ productName: "Low", dealScore: 30 }),
-        makeDisplayData({ productName: "High", dealScore: 90 }),
-        makeDisplayData({ productName: "None", dealScore: null }),
+        makeDisplayData({ productName: "Later", expectedCloseDate: "2026-03-30T18:00:00Z", dealScore: 90 }),
+        makeDisplayData({ productName: "Sooner", expectedCloseDate: "2026-03-28T12:00:00Z", dealScore: 30 }),
+        makeDisplayData({ productName: "NullHigh", expectedCloseDate: null, dealScore: 80 }),
+        makeDisplayData({ productName: "NullLow", expectedCloseDate: null, dealScore: 20 }),
       ];
       const result = plainText.activeOverview!(items);
-      const highIdx = result.indexOf("High");
-      const lowIdx = result.indexOf("Low");
-      const noneIdx = result.indexOf("None");
-      expect(highIdx).toBeLessThan(lowIdx);
-      expect(lowIdx).toBeLessThan(noneIdx);
+      const soonerIdx = result.indexOf("Sooner");
+      const laterIdx = result.indexOf("Later");
+      const nullHighIdx = result.indexOf("NullHigh");
+      const nullLowIdx = result.indexOf("NullLow");
+      expect(soonerIdx).toBeLessThan(laterIdx);
+      expect(laterIdx).toBeLessThan(nullHighIdx);
+      expect(nullHighIdx).toBeLessThan(nullLowIdx);
     });
 
     test("shows item count and deal count", () => {
@@ -720,13 +723,13 @@ describe("telegramHtml", () => {
   });
 
   describe("activeOverview", () => {
-    test("sorts by deal score descending", () => {
+    test("sorts by expectedCloseDate ascending", () => {
       const items = [
-        makeDisplayData({ productName: "Low", dealScore: 20 }),
-        makeDisplayData({ productName: "High", dealScore: 80 }),
+        makeDisplayData({ productName: "Later", expectedCloseDate: "2026-03-30T18:00:00Z" }),
+        makeDisplayData({ productName: "Sooner", expectedCloseDate: "2026-03-28T12:00:00Z" }),
       ];
       const result = telegramHtml.activeOverview!(items);
-      expect(result.indexOf("High")).toBeLessThan(result.indexOf("Low"));
+      expect(result.indexOf("Sooner")).toBeLessThan(result.indexOf("Later"));
     });
 
     test("empty items message", () => {

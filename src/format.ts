@@ -230,6 +230,26 @@ function formatDealScore(score: number | null): string {
   return score !== null ? `${score}%` : "N/A";
 }
 
+function sortByEndingSoonest(items: ItemDisplayData[]): ItemDisplayData[] {
+  return [...items].sort((a, b) => {
+    const aDate = a.expectedCloseDate ? new Date(a.expectedCloseDate).getTime() : NaN;
+    const bDate = b.expectedCloseDate ? new Date(b.expectedCloseDate).getTime() : NaN;
+    const aValid = !isNaN(aDate);
+    const bValid = !isNaN(bDate);
+
+    // Both have valid dates: sort ascending (soonest first)
+    if (aValid && bValid) return aDate - bDate;
+    // Only one has a valid date: that one comes first
+    if (aValid) return -1;
+    if (bValid) return 1;
+    // Neither has a valid date: fall back to deal score descending
+    if (a.dealScore === null && b.dealScore === null) return 0;
+    if (a.dealScore === null) return 1;
+    if (b.dealScore === null) return -1;
+    return b.dealScore - a.dealScore;
+  });
+}
+
 // --- Plain text renderer ---
 
 export const plainText: ItemRenderer<string> = {
@@ -414,12 +434,7 @@ export const plainText: ItemRenderer<string> = {
       return "No active items.";
     }
 
-    const sorted = [...items].sort((a, b) => {
-      if (a.dealScore === null && b.dealScore === null) return 0;
-      if (a.dealScore === null) return 1;
-      if (b.dealScore === null) return -1;
-      return b.dealScore - a.dealScore;
-    });
+    const sorted = sortByEndingSoonest(items);
 
     const deals = sorted.filter((i) => i.isDeal).length;
 
@@ -598,12 +613,7 @@ export const telegramHtml: ItemRenderer<string> = {
       return "No active items. Send a mac.bid URL or lot ID to analyze an item.";
     }
 
-    const sorted = [...items].sort((a, b) => {
-      if (a.dealScore === null && b.dealScore === null) return 0;
-      if (a.dealScore === null) return 1;
-      if (b.dealScore === null) return -1;
-      return b.dealScore - a.dealScore;
-    });
+    const sorted = sortByEndingSoonest(items);
 
     const deals = sorted.filter((i) => i.isDeal).length;
 
