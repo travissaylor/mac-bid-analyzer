@@ -333,6 +333,7 @@ function makeDisplayData(
     imageFlags: null,
     imageRiskScore: null,
     imageAnalysisSkipped: false,
+    expectedCloseDate: "2026-03-28T18:00:00Z",
     blend: { ebayMedian: 1800, aiMid: 1900 },
     ...overrides,
   };

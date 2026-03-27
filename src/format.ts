@@ -67,6 +67,9 @@ export interface ItemDisplayData {
   imageRiskScore: number | null;
   imageAnalysisSkipped: boolean;
 
+  // Auction timing
+  expectedCloseDate: string | null;
+
   // Blended source info (for cost breakdown views)
   blend: { ebayMedian: number; aiMid: number } | null;
 }
@@ -160,6 +163,7 @@ export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
     imageFlags,
     imageRiskScore,
     imageAnalysisSkipped,
+    expectedCloseDate: item.expected_close_date,
     blend,
   };
 }
