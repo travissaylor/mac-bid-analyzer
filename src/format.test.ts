@@ -5,6 +5,7 @@ import {
   plainText,
   telegramHtml,
   formatTimeRemaining,
+  isEndingSoon,
   type ItemDisplayData,
 } from "./format";
 
@@ -378,6 +379,40 @@ describe("formatTimeRemaining", () => {
   });
 });
 
+// ---------- isEndingSoon ----------
+
+describe("isEndingSoon", () => {
+  const now = new Date("2026-03-27T12:00:00Z");
+
+  test("returns true for item ending in 30 minutes", () => {
+    expect(isEndingSoon("2026-03-27T12:30:00Z", now)).toBe(true);
+  });
+
+  test("returns true for item ending in exactly 60 minutes (inclusive)", () => {
+    expect(isEndingSoon("2026-03-27T13:00:00Z", now)).toBe(true);
+  });
+
+  test("returns false for item ending in 61 minutes", () => {
+    expect(isEndingSoon("2026-03-27T13:01:00Z", now)).toBe(false);
+  });
+
+  test("returns false for item ending in 2 hours", () => {
+    expect(isEndingSoon("2026-03-27T14:00:00Z", now)).toBe(false);
+  });
+
+  test("returns false for past close date", () => {
+    expect(isEndingSoon("2026-03-27T11:00:00Z", now)).toBe(false);
+  });
+
+  test("returns false for null close date", () => {
+    expect(isEndingSoon(null, now)).toBe(false);
+  });
+
+  test("returns false for malformed date", () => {
+    expect(isEndingSoon("not-a-date", now)).toBe(false);
+  });
+});
+
 // ---------- plainText renderer ----------
 
 describe("plainText", () => {
@@ -659,6 +694,37 @@ describe("plainText", () => {
       ]);
       expect(result).toContain("⏰ End time unknown");
     });
+
+    test("shows fire emoji for item ending within 1 hour", () => {
+      const soon = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: soon }),
+      ]);
+      expect(result).toContain("🔥");
+    });
+
+    test("no fire emoji for item ending in more than 1 hour", () => {
+      const later = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: later }),
+      ]);
+      expect(result).not.toContain("🔥");
+    });
+
+    test("no fire emoji for null close date", () => {
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: null }),
+      ]);
+      expect(result).not.toContain("🔥");
+    });
+
+    test("no fire emoji for past close date", () => {
+      const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: past }),
+      ]);
+      expect(result).not.toContain("🔥");
+    });
   });
 });
 
@@ -811,6 +877,29 @@ describe("telegramHtml", () => {
         makeDisplayData({ expectedCloseDate: null }),
       ]);
       expect(result).toContain("⏰ End time unknown");
+    });
+
+    test("shows fire emoji for item ending within 1 hour", () => {
+      const soon = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      const result = telegramHtml.activeOverview!([
+        makeDisplayData({ expectedCloseDate: soon }),
+      ]);
+      expect(result).toContain("🔥");
+    });
+
+    test("no fire emoji for item ending in more than 1 hour", () => {
+      const later = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+      const result = telegramHtml.activeOverview!([
+        makeDisplayData({ expectedCloseDate: later }),
+      ]);
+      expect(result).not.toContain("🔥");
+    });
+
+    test("no fire emoji for null close date", () => {
+      const result = telegramHtml.activeOverview!([
+        makeDisplayData({ expectedCloseDate: null }),
+      ]);
+      expect(result).not.toContain("🔥");
     });
   });
 

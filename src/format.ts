@@ -204,6 +204,14 @@ function severityLabel(severity: ImageFinding["severity"]): string {
 
 // --- Time remaining ---
 
+export function isEndingSoon(closeDate: string | null, now: Date = new Date()): boolean {
+  if (closeDate === null) return false;
+  const close = new Date(closeDate);
+  if (isNaN(close.getTime())) return false;
+  const diffMs = close.getTime() - now.getTime();
+  return diffMs > 0 && diffMs <= 60 * 60 * 1000;
+}
+
 export function formatTimeRemaining(closeDate: string | null, now: Date = new Date()): string {
   if (closeDate === null) return "End time unknown";
   const close = new Date(closeDate);
@@ -463,7 +471,8 @@ export const plainText: ItemRenderer<string> = {
       lines.push("");
       lines.push(item.productName);
       lines.push(`Bid: ${formatCurrency(item.currentBid)}`);
-      lines.push(`⏰ ${formatTimeRemaining(item.expectedCloseDate)}`);
+      const urgent = isEndingSoon(item.expectedCloseDate) ? "🔥 " : "";
+      lines.push(`⏰ ${urgent}${formatTimeRemaining(item.expectedCloseDate)}`);
 
       if (item.maxBid.type === "value") {
         lines.push(`Max: ${formatCurrency(item.maxBid.amount)}`);
@@ -643,7 +652,8 @@ export const telegramHtml: ItemRenderer<string> = {
       lines.push("");
       lines.push(`<b>${escapeHtml(item.productName)}</b>`);
       lines.push(`Bid: ${formatCurrency(item.currentBid)}`);
-      lines.push(`⏰ ${formatTimeRemaining(item.expectedCloseDate)}`);
+      const urgent = isEndingSoon(item.expectedCloseDate) ? "🔥 " : "";
+      lines.push(`⏰ ${urgent}${formatTimeRemaining(item.expectedCloseDate)}`);
 
       if (item.maxBid.type === "value") {
         lines.push(`Max: ${formatCurrency(item.maxBid.amount)}`);
