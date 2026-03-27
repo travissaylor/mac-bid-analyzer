@@ -146,7 +146,17 @@ const IMAGE_ARRAY_FIELDS = ["images", "product_images", "gallery", "photos", "lo
 export function extractImageUrls(data: Record<string, unknown>): string[] {
   const urls: string[] = [];
 
-  // Try known array fields first
+  // Start with the stock/primary image so it is always index 0
+  const primary = data.image_url as string | undefined;
+  const stock = data.stock_image_url as string | undefined;
+  const stockUrl = (typeof primary === "string" && primary.length > 0) ? primary
+    : (typeof stock === "string" && stock.length > 0) ? stock
+    : null;
+  if (stockUrl) {
+    urls.push(stockUrl);
+  }
+
+  // Add product photos from known array fields
   for (const field of IMAGE_ARRAY_FIELDS) {
     const value = data[field];
     if (Array.isArray(value) && value.length > 0) {
@@ -162,18 +172,7 @@ export function extractImageUrls(data: Record<string, unknown>): string[] {
           }
         }
       }
-      if (urls.length > 0) break;
-    }
-  }
-
-  // Fall back to single image fields
-  if (urls.length === 0) {
-    const primary = data.image_url as string | undefined;
-    const stock = data.stock_image_url as string | undefined;
-    if (typeof primary === "string" && primary.length > 0) {
-      urls.push(primary);
-    } else if (typeof stock === "string" && stock.length > 0) {
-      urls.push(stock);
+      break;
     }
   }
 
