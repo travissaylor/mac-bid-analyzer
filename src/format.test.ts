@@ -4,6 +4,7 @@ import {
   resolveDisplayData,
   plainText,
   telegramHtml,
+  formatTimeRemaining,
   type ItemDisplayData,
 } from "./format";
 
@@ -339,6 +340,44 @@ function makeDisplayData(
   };
 }
 
+// ---------- formatTimeRemaining ----------
+
+describe("formatTimeRemaining", () => {
+  const now = new Date("2026-03-27T12:00:00Z");
+
+  test("returns days and hours for >24h", () => {
+    expect(formatTimeRemaining("2026-03-30T18:00:00Z", now)).toBe("3d 6h");
+  });
+
+  test("returns hours and minutes for >1h", () => {
+    expect(formatTimeRemaining("2026-03-27T14:15:00Z", now)).toBe("2h 15m");
+  });
+
+  test("returns minutes only for <1h", () => {
+    expect(formatTimeRemaining("2026-03-27T12:45:00Z", now)).toBe("45m");
+  });
+
+  test("returns 0m for exactly now", () => {
+    expect(formatTimeRemaining("2026-03-27T12:00:00Z", now)).toBe("Ended");
+  });
+
+  test("returns Ended for past dates", () => {
+    expect(formatTimeRemaining("2026-03-26T10:00:00Z", now)).toBe("Ended");
+  });
+
+  test("returns End time unknown for null", () => {
+    expect(formatTimeRemaining(null, now)).toBe("End time unknown");
+  });
+
+  test("returns End time unknown for malformed date", () => {
+    expect(formatTimeRemaining("not-a-date", now)).toBe("End time unknown");
+  });
+
+  test("1d 0h for exactly 24 hours", () => {
+    expect(formatTimeRemaining("2026-03-28T12:00:00Z", now)).toBe("1d 0h");
+  });
+});
+
 // ---------- plainText renderer ----------
 
 describe("plainText", () => {
@@ -606,6 +645,20 @@ describe("plainText", () => {
       ]);
       expect(result).toContain("⛔ over max");
     });
+
+    test("shows time remaining for items with close date", () => {
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: "2099-01-01T00:00:00Z" }),
+      ]);
+      expect(result).toContain("⏰");
+    });
+
+    test("shows End time unknown for null close date", () => {
+      const result = plainText.activeOverview!([
+        makeDisplayData({ expectedCloseDate: null }),
+      ]);
+      expect(result).toContain("⏰ End time unknown");
+    });
   });
 });
 
@@ -744,6 +797,20 @@ describe("telegramHtml", () => {
       ];
       const result = telegramHtml.activeOverview!(items);
       expect(result).toContain("<b>2 active items, 2 deals</b>");
+    });
+
+    test("shows time remaining for items with close date", () => {
+      const result = telegramHtml.activeOverview!([
+        makeDisplayData({ expectedCloseDate: "2099-01-01T00:00:00Z" }),
+      ]);
+      expect(result).toContain("⏰");
+    });
+
+    test("shows End time unknown for null close date", () => {
+      const result = telegramHtml.activeOverview!([
+        makeDisplayData({ expectedCloseDate: null }),
+      ]);
+      expect(result).toContain("⏰ End time unknown");
     });
   });
 

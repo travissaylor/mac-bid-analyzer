@@ -202,6 +202,24 @@ function severityLabel(severity: ImageFinding["severity"]): string {
   }
 }
 
+// --- Time remaining ---
+
+export function formatTimeRemaining(closeDate: string | null, now: Date = new Date()): string {
+  if (closeDate === null) return "End time unknown";
+  const close = new Date(closeDate);
+  if (isNaN(close.getTime())) return "End time unknown";
+  const diffMs = close.getTime() - now.getTime();
+  if (diffMs <= 0) return "Ended";
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 // --- Formatting helpers ---
 
 export function escapeHtml(text: string): string {
@@ -445,6 +463,7 @@ export const plainText: ItemRenderer<string> = {
       lines.push("");
       lines.push(item.productName);
       lines.push(`Bid: ${formatCurrency(item.currentBid)}`);
+      lines.push(`⏰ ${formatTimeRemaining(item.expectedCloseDate)}`);
 
       if (item.maxBid.type === "value") {
         lines.push(`Max: ${formatCurrency(item.maxBid.amount)}`);
@@ -624,6 +643,7 @@ export const telegramHtml: ItemRenderer<string> = {
       lines.push("");
       lines.push(`<b>${escapeHtml(item.productName)}</b>`);
       lines.push(`Bid: ${formatCurrency(item.currentBid)}`);
+      lines.push(`⏰ ${formatTimeRemaining(item.expectedCloseDate)}`);
 
       if (item.maxBid.type === "value") {
         lines.push(`Max: ${formatCurrency(item.maxBid.amount)}`);
