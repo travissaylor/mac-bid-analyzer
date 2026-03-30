@@ -5,15 +5,19 @@
 ## Environment Variables (`.env`)
 
 ```bash
-# eBay Browse API
+# eBay Browse API (https://developer.ebay.com)
 EBAY_APP_ID=your-app-id
 EBAY_APP_SECRET=your-app-secret
 
-# OpenAI API (default LLM provider)
+# OpenAI API (https://platform.openai.com)
 OPENAI_API_KEY=your-openai-key
 
-# Gemini API (alternative LLM provider)
+# Gemini API (https://ai.google.dev)
 GEMINI_API_KEY=your-gemini-key
+
+# Telegram Bot (https://core.telegram.org/bots)
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_ALLOWED_USER_ID=your-numeric-user-id
 ```
 
 ## Config File (`config.json`)
@@ -34,7 +38,7 @@ GEMINI_API_KEY=your-gemini-key
     }
   },
   "manual_review_conditions": ["USED", "SALVAGE", "DAMAGED"],
-  "llm_model": "openai/gpt-4o-mini"
+  "llm_model": "gemini/gemini-3.1-flash-lite-preview"
 }
 ```
 
@@ -50,7 +54,7 @@ GEMINI_API_KEY=your-gemini-key
 | `location_tiers.transfer.extra_cost` | number | `10` | Cost added for items at transfer-eligible buildings. |
 | `location_tiers.remote.extra_cost` | number | `25` | Cost added for items at non-transfer buildings. |
 | `manual_review_conditions` | string[] | `["USED", "SALVAGE", "DAMAGED"]` | Conditions that skip auto-recommendation and flag for manual review. |
-| `llm_model` | string | `"openai/gpt-4o-mini"` | LLM provider and model in `"provider/model-name"` format. Supported providers: `openai`, `gemini`. |
+| `llm_model` | string | `"gemini/gemini-3.1-flash-lite-preview"` | LLM provider and model in `"provider/model-name"` format. Supported providers: `openai`, `gemini`. (Deprecated: `gemini_model` field is auto-converted to `llm_model` with `gemini/` prefix.) |
 
 ## CLI Flags
 
@@ -62,6 +66,7 @@ GEMINI_API_KEY=your-gemini-key
 | `--force` | Re-analyze even if already in DB | `mac-bid analyze 52217488 --force` |
 | `--threshold <n>` | Override discount threshold for this run | `mac-bid analyze 52217488 --threshold 0.40` |
 | `--model <p/m>` | Override LLM provider/model for this run | `mac-bid analyze 52217488 --model gemini/gemini-2.5-flash` |
+| `--dry-run` | Run without writing to the database | `mac-bid analyze 52217488 --dry-run` |
 
 ### `mac-bid results`
 
@@ -70,6 +75,25 @@ GEMINI_API_KEY=your-gemini-key
 | `--open` | Show only open auctions | `mac-bid results --open` |
 | `--deals` | Show only items with positive deal score | `mac-bid results --deals` |
 | `--review` | Show only items needing manual review | `mac-bid results --review` |
+
+### `mac-bid telegram`
+
+Starts the Telegram bot in long-polling mode. Requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_USER_ID` env vars.
+
+Bot commands: `/active` (show open items with live sync), `/help`. Send a mac.bid URL or lot ID to analyze an item.
+
+### `mac-bid eval export`
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--output <path>` | Output file path (default: `evals/fixtures.jsonl`) | `mac-bid eval export --output data/fixtures.jsonl` |
+
+### `mac-bid eval run`
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--fixtures <path>` | Fixture file path (default: `evals/fixtures.jsonl`) | `mac-bid eval run --fixtures data/fixtures.jsonl` |
+| `--models <m1,m2>` | Comma-separated models (required) | `mac-bid eval run --models gemini/gemini-2.5-flash,openai/gpt-4o-mini` |
 
 ## Input Format Support
 

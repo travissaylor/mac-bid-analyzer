@@ -43,11 +43,14 @@ CREATE TABLE analyzed_items (
   ebay_sold_count   INTEGER DEFAULT 0,
   ebay_search_query TEXT,
 
-  -- LLM fallback (when ebay_sold_count < 5)
+  -- LLM estimation
   llm_estimate_low  REAL,
   llm_estimate_mid  REAL,
   llm_estimate_high REAL,
   llm_provider      TEXT,
+  llm_confidence    REAL,           -- 0-100 confidence score
+  llm_reasoning     TEXT,           -- brief explanation of estimate
+  llm_comparables   TEXT,           -- JSON array of {name, estimatedPrice}
 
   -- Calculated recommendation
   recommended_max_bid REAL,
@@ -55,6 +58,9 @@ CREATE TABLE analyzed_items (
   location_cost     REAL DEFAULT 0,
   location_tier     TEXT,  -- 'home', 'transfer', 'remote'
   deal_score        REAL,
+  image_flags       TEXT,           -- JSON array of image findings
+  image_risk_score  REAL,           -- 0-100 overall risk from image analysis
+  image_analysis_skipped INTEGER,   -- 1 if only stock images available
   needs_manual_review INTEGER NOT NULL DEFAULT 0,
   manual_review_reason TEXT,
 

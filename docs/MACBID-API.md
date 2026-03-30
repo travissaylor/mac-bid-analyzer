@@ -63,27 +63,17 @@ All read-only auction/location/building endpoints are public. No headers, tokens
 
 **Use case:** Determining sales tax rate and deriving transfer-eligible buildings from home building IDs.
 
-### GET /locations
+### SSR Data — GET https://www.mac.bid/lot/:lotId
 
-**Public.** Returns all pickup locations.
+**Public.** Fetches the lot detail page HTML and extracts the `__NEXT_DATA__` JSON payload embedded in the server-side rendered page. This provides richer product data than the DDB endpoint, including multiple product images.
 
-```json
-{
-  "id": 1,
-  "name": "Washington - A",
-  "city_state": "Washington, PA",
-  "building_id": 1,
-  "can_transfer": 1,
-  "transfer_destinations": "24,93"
-}
-```
-
-**Use case:** Mapping `current_location_id` on items to building IDs for location cost calculation.
+**Use case:** Extracting product image URLs for LLM image analysis, and supplementary metadata not available from the DDB endpoint.
 
 ## Endpoints NOT Used
 
 | Endpoint | Why not |
 |----------|---------|
+| `GET /locations` | Location-to-building mapping can be derived from `/buildings` data. |
 | `GET /auctions` | Returns all active auctions (~1.2MB). Too broad; we fetch specific items. |
 | `POST /multi_search` (Typesense) | Search not needed — entry points are specific URLs. |
 | `GET /turbo-clock-auctions` | Turbo auctions handled via lot ID lookup. |
