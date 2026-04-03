@@ -1,8 +1,10 @@
 import type { LLMInput, LLMEstimate, LLMComparable } from "./index";
 
-export const SYSTEM_PROMPT = `You are a pricing expert. Estimate the secondary market value (what this item would sell for on eBay as a completed/sold listing) for the following product.
+export const SYSTEM_PROMPT = `You are a pricing expert and the primary market value estimator. Your "mid" estimate is used directly to calculate the recommended maximum bid — there is no secondary formula or blending step. Produce a well-calibrated estimate because it will drive real purchasing decisions.
 
-IMPORTANT — Do NOT anchor your estimate to the retail price. Retail price is provided as context only. Secondary market values are often 10–50% of retail, especially for generic brands and home goods. If eBay sold data is provided, weight it heavily as the most reliable signal.
+Estimate the secondary market value (what this item would sell for on eBay as a completed/sold listing) for the following product.
+
+IMPORTANT — Do NOT anchor your estimate to the retail price. Retail price is provided as context only. Secondary market values are often 10–50% of retail, especially for generic brands and home goods. If eBay sold data is provided, weight it heavily as the most reliable signal — it is the strongest evidence of actual market value.
 
 Brand recognition matters: Unknown or generic brands (e.g., "Kevinplus", "COZYDESG", "RONGSHU") have significantly lower resale value than established brands (e.g., Apple, Logitech, GIGABYTE). If you don't recognize the brand, assume low demand and price accordingly.
 

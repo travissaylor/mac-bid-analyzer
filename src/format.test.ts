@@ -56,7 +56,7 @@ function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
     needs_manual_review: 0,
     manual_review_reason: null,
     analyzed_at: "2026-03-22T10:00:00Z",
-    analysis_source: "blended",
+    analysis_source: "ai",
     ...overrides,
   };
 }
@@ -234,24 +234,6 @@ describe("resolveDisplayData", () => {
     expect(data.dealScore).toBeNull();
   });
 
-  test("blend populated for blended source", () => {
-    const data = resolveDisplayData(
-      makeItem({
-        analysis_source: "blended",
-        ebay_sold_median: 1800,
-        llm_estimate_mid: 1900,
-      }),
-    );
-    expect(data.blend).toEqual({ ebayMedian: 1800, aiMid: 1900 });
-  });
-
-  test("blend null for non-blended source", () => {
-    const data = resolveDisplayData(
-      makeItem({ analysis_source: "ebay-only" }),
-    );
-    expect(data.blend).toBeNull();
-  });
-
   describe("image flags", () => {
     test("parses image_flags JSON into imageFlags array", () => {
       const flags = [
@@ -307,7 +289,7 @@ function makeDisplayData(
     locationTier: "local",
     locationCost: 5,
     analyzedAt: "2026-03-22T10:00:00Z",
-    analysisSource: "blended",
+    analysisSource: "ai",
     ebay: {
       median: 1800,
       low: 1500,
@@ -336,7 +318,6 @@ function makeDisplayData(
     imageRiskScore: null,
     imageAnalysisSkipped: false,
     expectedCloseDate: "2026-03-28T18:00:00Z",
-    blend: { ebayMedian: 1800, aiMid: 1900 },
     ...overrides,
   };
 }
@@ -427,7 +408,7 @@ describe("plainText", () => {
       expect(result).toContain("AI Estimate: $1900.00 (confidence: 82)");
       expect(result).toContain("Max Bid: $1200.00");
       expect(result).toContain("Deal Score: 58%");
-      expect(result).toContain("Source: blended");
+      expect(result).toContain("Source: ai");
     });
 
     test("no eBay comps shows 'None found'", () => {
@@ -499,7 +480,7 @@ describe("plainText", () => {
       expect(result).toContain("Confidence: 82/100");
       expect(result).toContain("Reasoning: High-end laptop retains value.");
       expect(result).toContain("--- Cost Breakdown ---");
-      expect(result).toContain("Blended: eBay $1800.00 + AI $1900.00");
+      expect(result).toContain("Base Estimate (AI): $1900.00");
       expect(result).toContain("Sales Tax Rate: 7.0%");
       expect(result).toContain("Location Cost: $5.00");
       expect(result).toContain("--- Recommendation ---");
@@ -522,11 +503,10 @@ describe("plainText", () => {
       expect(result).toContain("MacBook Pro 16 M3 Pro: $1950.00");
     });
 
-    test("ebay-only source shows base estimate", () => {
+    test("ebay source shows base estimate", () => {
       const result = plainText.detail!(
         makeDisplayData({
-          analysisSource: "ebay-only",
-          blend: null,
+          analysisSource: "ebay",
           ebay: {
             median: 1800,
             low: 1500,
@@ -539,11 +519,10 @@ describe("plainText", () => {
       expect(result).toContain("Base Estimate (eBay): $1800.00");
     });
 
-    test("ai-only source shows base estimate", () => {
+    test("ai source shows base estimate", () => {
       const result = plainText.detail!(
         makeDisplayData({
-          analysisSource: "ai-only",
-          blend: null,
+          analysisSource: "ai",
           ai: {
             provider: "gemini",
             low: 1600,
@@ -739,7 +718,7 @@ describe("telegramHtml", () => {
       expect(result).toContain("$500.00 (10 bids)");
       expect(result).toContain("✅ Max Bid: <b>$1200.00</b>");
       expect(result).toContain("Deal: 58%");
-      expect(result).toContain("Source: blended");
+      expect(result).toContain("Source: ai");
       expect(result).toContain("📊 eBay:");
       expect(result).toContain("🤖 AI:");
     });
@@ -777,7 +756,7 @@ describe("telegramHtml", () => {
     test("contains cost section with emoji header", () => {
       const result = telegramHtml.detail!(makeDisplayData());
       expect(result).toContain("💵 <b>Costs</b>");
-      expect(result).toContain("Blended: eBay $1800.00 + AI $1900.00");
+      expect(result).toContain("Base: $1900.00 (AI)");
       expect(result).toContain("Location: $5.00");
     });
 

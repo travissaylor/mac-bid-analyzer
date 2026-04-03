@@ -69,9 +69,6 @@ export interface ItemDisplayData {
 
   // Auction timing
   expectedCloseDate: string | null;
-
-  // Blended source info (for cost breakdown views)
-  blend: { ebayMedian: number; aiMid: number } | null;
 }
 
 export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
@@ -132,14 +129,6 @@ export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
   const imageRiskScore = item.image_risk_score;
   const imageAnalysisSkipped = item.image_analysis_skipped === 1;
 
-  // Blended source info
-  const blend =
-    item.analysis_source === "blended" &&
-    item.ebay_sold_median !== null &&
-    item.llm_estimate_mid !== null
-      ? { ebayMedian: item.ebay_sold_median, aiMid: item.llm_estimate_mid }
-      : null;
-
   return {
     lotId: item.lot_id,
     productName: item.product_name,
@@ -164,7 +153,6 @@ export function resolveDisplayData(item: AnalyzedItem): ItemDisplayData {
     imageRiskScore,
     imageAnalysisSkipped,
     expectedCloseDate: item.expected_close_date,
-    blend,
   };
 }
 
@@ -385,11 +373,9 @@ export const plainText: ItemRenderer<string> = {
     // Cost breakdown
     lines.push("");
     lines.push("--- Cost Breakdown ---");
-    if (data.blend) {
-      lines.push(`Blended: eBay ${formatCurrency(data.blend.ebayMedian)} + AI ${formatCurrency(data.blend.aiMid)}`);
-    } else if (data.analysisSource === "ebay-only" && data.ebay) {
+    if (data.analysisSource === "ebay" && data.ebay) {
       lines.push(`Base Estimate (eBay): ${formatCurrency(data.ebay.median)}`);
-    } else if (data.analysisSource === "ai-only" && data.ai) {
+    } else if (data.analysisSource === "ai" && data.ai) {
       lines.push(`Base Estimate (AI): ${formatCurrency(data.ai.mid)}`);
     }
     if (data.salesTaxRate !== null) {
@@ -599,11 +585,9 @@ export const telegramHtml: ItemRenderer<string> = {
     // Cost breakdown
     lines.push("");
     lines.push("💵 <b>Costs</b>");
-    if (data.blend) {
-      lines.push(`Blended: eBay ${formatCurrency(data.blend.ebayMedian)} + AI ${formatCurrency(data.blend.aiMid)}`);
-    } else if (data.analysisSource === "ebay-only" && data.ebay) {
+    if (data.analysisSource === "ebay" && data.ebay) {
       lines.push(`Base: ${formatCurrency(data.ebay.median)} (eBay)`);
-    } else if (data.analysisSource === "ai-only" && data.ai) {
+    } else if (data.analysisSource === "ai" && data.ai) {
       lines.push(`Base: ${formatCurrency(data.ai.mid)} (AI)`);
     }
     const costParts: string[] = [];
