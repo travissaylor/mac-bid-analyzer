@@ -59,6 +59,12 @@ describe("llm/prompt", () => {
       expect(prompt).toContain("JSON");
     });
 
+    it("should emphasize the AI is the primary estimator", () => {
+      const prompt = buildPrompt(sampleInput);
+      expect(prompt).toContain("primary market value estimator");
+      expect(prompt).toContain("mid\" estimate is used directly to calculate the recommended maximum bid");
+    });
+
     it("should warn against retail price anchoring", () => {
       const prompt = buildPrompt(sampleInput);
       expect(prompt).toContain("Do NOT anchor your estimate to the retail price");
