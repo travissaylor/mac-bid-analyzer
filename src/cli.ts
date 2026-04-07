@@ -6,6 +6,7 @@ import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
+import { startServer } from "./server";
 import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
 import { exportFixtures } from "./eval/export";
 import { runEval, saveReport, printSummaryTable, printSearchMetrics } from "./eval/runner";
@@ -28,6 +29,7 @@ function printUsage(): void {
   console.log("  results              Query and display stored analysis results");
   console.log("  detail <lotId>       Show full AI analysis for a specific item");
   console.log("  telegram             Start the Telegram bot in long-polling mode");
+  console.log("  server               Start the HTTP API server");
   console.log("  eval export          Export analyzed items as JSONL fixture file for evals");
   console.log("");
   console.log("Global options:");
@@ -91,7 +93,7 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "results" | "detail" | "telegram" | "eval" | "help";
+  subcommand: "analyze" | "results" | "detail" | "telegram" | "server" | "eval" | "help";
   input?: string;
   evalSubcommand?: "export" | "run";
   flags: {
@@ -186,7 +188,7 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram" && subcommand !== "eval") {
+  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram" && subcommand !== "server" && subcommand !== "eval") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
   }
 
@@ -352,6 +354,11 @@ async function main(): Promise<void> {
   if (parsed.subcommand === "telegram") {
     startTelegramBot();
     return; // bot runs until killed
+  }
+
+  if (parsed.subcommand === "server") {
+    startServer();
+    return; // server runs until killed
   }
 
   if (parsed.subcommand === "eval") {

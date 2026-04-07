@@ -168,6 +168,11 @@ describe("parseArgs", () => {
     expect(result.flags.help).toBe(true);
   });
 
+  test("server subcommand", () => {
+    const result = parseArgs(["server"]);
+    expect(result.subcommand).toBe("server");
+  });
+
   test("eval export subcommand", () => {
     const result = parseArgs(["eval", "export"]);
     expect(result.subcommand).toBe("eval");
