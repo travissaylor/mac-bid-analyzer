@@ -5,7 +5,8 @@
   "description": "Analyze mac.bid lots directly in your browser",
   "permissions": [
     "sidePanel",
-    "activeTab"
+    "activeTab",
+    "storage"
   ],
   "side_panel": {
     "default_path": "sidepanel.html"

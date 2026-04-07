@@ -23,6 +23,71 @@
     #lot-info {
       display: none;
     }
+    #lot-identifier {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+    .btn-primary {
+      background-color: #4CAF50;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background-color: #43a047;
+    }
+    .btn-secondary {
+      background-color: #757575;
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      background-color: #616161;
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #loading-indicator {
+      display: none;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #888;
+    }
+    #error-message {
+      display: none;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background-color: #ffebee;
+      color: #c62828;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    #results {
+      display: none;
+      margin-top: 16px;
+    }
+    #results-data {
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.4;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #actions {
+      margin-top: 12px;
+    }
   </style>
 </head>
 <body>
@@ -30,7 +95,13 @@
     <p>Navigate to a mac.bid lot page to analyze</p>
   </div>
   <div id="lot-info">
-    <!-- Lot details and analyze button will be added in US-004 -->
+    <div id="lot-identifier"></div>
+    <div id="actions"></div>
+    <div id="loading-indicator">Analyzing lot...</div>
+    <div id="error-message"></div>
+    <div id="results">
+      <pre id="results-data"></pre>
+    </div>
   </div>
   <script src="sidepanel.js"></script>
 </body>
