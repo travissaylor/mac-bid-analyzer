@@ -392,6 +392,14 @@ async function runAnalysis(force) {
   showLoading(true);
   disableActions();
 
+  const { apiToken } = await getSettings();
+  if (!apiToken) {
+    showError("API token not configured. Please set it in the extension options (right-click the extension icon > Options).");
+    showLoading(false);
+    enableActions();
+    return;
+  }
+
   try {
     const data = await callAnalyze(currentLotInfo.lotId, force);
     showResults(data);
