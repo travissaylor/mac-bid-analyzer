@@ -2,10 +2,10 @@
 // Detects lot pages and extracts the lot identifier
 
 const LOT_URL_PATTERNS = [
-  // /auction/{auctionId}/lot/{lotNumber}
-  /\/auction\/(\d+)\/lot\/(\d+)/,
+  // /auction/{auctionId}/lot/{lotNumber} (lot IDs can have letter suffixes like 2691L)
+  /\/auction\/(\d+)\/lot\/(\d+[A-Za-z]*)/,
   // /lot/{lotId}
-  /\/lot\/(\d+)/,
+  /\/lot\/(\d+[A-Za-z]*)/,
 ];
 
 function extractLotInfo(url) {

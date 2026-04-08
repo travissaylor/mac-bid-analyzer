@@ -8,6 +8,10 @@
     "activeTab",
     "storage"
   ],
+  "host_permissions": [
+    "*://*.mac.bid/*",
+    "*://mac.bid/*"
+  ],
   "side_panel": {
     "default_path": "sidepanel.html"
   },
@@ -17,6 +21,7 @@
       "js": ["content.js"]
     }
   ],
+  "action": {},
   "background": {
     "service_worker": "service-worker.js"
   },

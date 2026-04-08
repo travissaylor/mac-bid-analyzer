@@ -400,7 +400,7 @@ async function callAnalyze(lotId, force) {
     response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ input: String(lotId), force }),
+      body: JSON.stringify({ input: currentLotInfo?.path || String(lotId), force }),
     });
   } catch (networkErr) {
     const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
