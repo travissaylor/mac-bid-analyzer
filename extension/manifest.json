@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "mac.bid Analyzer",
+  "version": "0.1.0",
+  "description": "Analyze mac.bid lots directly in your browser",
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.mac.bid/*",
+    "*://mac.bid/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.mac.bid/*", "*://mac.bid/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {},
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "options_page": "options.html"
+}
