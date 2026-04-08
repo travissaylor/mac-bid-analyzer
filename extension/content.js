@@ -29,6 +29,22 @@ function extractLotInfo(url) {
     };
   }
 
+  // /search?aid={auctionId}&lid={lotId} (preview panel)
+  const parsed = new URL(url);
+  if (parsed.pathname === "/search") {
+    const aid = parsed.searchParams.get("aid");
+    const lid = parsed.searchParams.get("lid");
+    if (aid && lid) {
+      return {
+        type: "auction_lot",
+        auctionId: aid,
+        lotNumber: lid,
+        lotId: lid,
+        path: `/auction/${aid}/lot/${lid}`,
+      };
+    }
+  }
+
   return null;
 }
 
