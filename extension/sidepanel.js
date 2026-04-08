@@ -289,9 +289,25 @@ function showLoading(show) {
   loadingIndicator.style.display = show ? "block" : "none";
 }
 
-function showError(message) {
+function showError(message, options = {}) {
   if (message) {
-    errorMessageEl.textContent = message;
+    errorMessageEl.innerHTML = "";
+    const text = document.createElement("div");
+    text.textContent = message;
+    errorMessageEl.appendChild(text);
+
+    if (options.retryable) {
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "btn btn-primary";
+      retryBtn.textContent = "Retry";
+      retryBtn.style.marginTop = "8px";
+      retryBtn.addEventListener("click", () => {
+        showError(null);
+        runAnalysis(false);
+      });
+      errorMessageEl.appendChild(retryBtn);
+    }
+
     errorMessageEl.style.display = "block";
   } else {
     errorMessageEl.style.display = "none";
@@ -348,7 +364,19 @@ async function checkCachedResults(lotId) {
     headers["Authorization"] = `Bearer ${apiToken}`;
   }
 
-  const response = await fetch(url, { headers });
+  let response;
+  try {
+    response = await fetch(url, { headers });
+  } catch (networkErr) {
+    const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
+    err.isNetworkError = true;
+    throw err;
+  }
+
+  if (response.status === 401) {
+    throw new Error("Invalid API token. Check your extension settings.");
+  }
+
   if (response.ok) {
     return await response.json();
   }
@@ -367,11 +395,22 @@ async function callAnalyze(lotId, force) {
     headers["Authorization"] = `Bearer ${apiToken}`;
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ input: String(lotId), force }),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ input: String(lotId), force }),
+    });
+  } catch (networkErr) {
+    const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
+    err.isNetworkError = true;
+    throw err;
+  }
+
+  if (response.status === 401) {
+    throw new Error("Invalid API token. Check your extension settings.");
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -405,7 +444,7 @@ async function runAnalysis(force) {
     showResults(data);
     renderReanalyzeButton();
   } catch (err) {
-    showError(err.message || "Analysis failed");
+    showError(err.message || "Analysis failed", { retryable: !!err.isNetworkError });
     renderAnalyzeButton();
   } finally {
     showLoading(false);
@@ -437,8 +476,8 @@ async function handleLotDetected(lotInfo) {
     } else {
       renderAnalyzeButton();
     }
-  } catch {
-    // If cache check fails (e.g. network error), just show analyze button
+  } catch (err) {
+    showError(err.message || "Failed to connect to backend", { retryable: !!err.isNetworkError });
     renderAnalyzeButton();
   } finally {
     showLoading(false);
