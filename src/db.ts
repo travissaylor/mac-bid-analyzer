@@ -45,6 +45,7 @@ export interface AnalyzedItem {
   manual_review_reason: string | null;
   analyzed_at: string;
   analysis_source: string;
+  user_feedback: string | null;
 }
 
 const SCHEMA_SQL = `
@@ -96,7 +97,8 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
   manual_review_reason TEXT,
 
   analyzed_at       TEXT NOT NULL,
-  analysis_source   TEXT NOT NULL
+  analysis_source   TEXT NOT NULL,
+  user_feedback     TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_analyzed_items_is_open ON analyzed_items(is_open);
@@ -117,6 +119,7 @@ function migrateSchema(db: Database): void {
     ["image_flags", "ALTER TABLE analyzed_items ADD COLUMN image_flags TEXT"],
     ["image_risk_score", "ALTER TABLE analyzed_items ADD COLUMN image_risk_score REAL"],
     ["image_analysis_skipped", "ALTER TABLE analyzed_items ADD COLUMN image_analysis_skipped INTEGER"],
+    ["user_feedback", "ALTER TABLE analyzed_items ADD COLUMN user_feedback TEXT"],
   ];
 
   for (const [col, sql] of migrations) {
@@ -148,7 +151,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       recommended_max_bid, sales_tax_rate, location_cost, location_tier,
       deal_score, image_flags, image_risk_score, image_analysis_skipped,
       needs_manual_review, manual_review_reason,
-      analyzed_at, analysis_source
+      analyzed_at, analysis_source, user_feedback
     ) VALUES (
       $lot_id, $auction_id, $lot_number, $product_name, $upc, $condition,
       $retail_price, $category, $description, $image_url, $building_id,
@@ -160,7 +163,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       $recommended_max_bid, $sales_tax_rate, $location_cost, $location_tier,
       $deal_score, $image_flags, $image_risk_score, $image_analysis_skipped,
       $needs_manual_review, $manual_review_reason,
-      $analyzed_at, $analysis_source
+      $analyzed_at, $analysis_source, $user_feedback
     ) ON CONFLICT(lot_id) DO UPDATE SET
       auction_id = excluded.auction_id,
       lot_number = excluded.lot_number,
@@ -203,7 +206,8 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       needs_manual_review = excluded.needs_manual_review,
       manual_review_reason = excluded.manual_review_reason,
       analyzed_at = excluded.analyzed_at,
-      analysis_source = excluded.analysis_source
+      analysis_source = excluded.analysis_source,
+      user_feedback = excluded.user_feedback
   `);
 
   stmt.run({
@@ -250,6 +254,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
     $manual_review_reason: item.manual_review_reason,
     $analyzed_at: item.analyzed_at,
     $analysis_source: item.analysis_source,
+    $user_feedback: item.user_feedback ?? null,
   });
 }
 

@@ -554,6 +554,7 @@ export async function analyzeItem(
       manual_review_reason: manualReviewReason,
       analyzed_at: new Date().toISOString(),
       analysis_source: analysisSource,
+      user_feedback: null,
     };
 
     // Store in DB
