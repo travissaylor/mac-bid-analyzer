@@ -56,6 +56,9 @@ function printAnalyzeHelp(): void {
   console.log("  --threshold <0-1>    Override discount threshold");
   console.log("  --model <p/m>        Override LLM provider/model (e.g. gemini/gemini-2.5-flash)");
   console.log("  --dry-run            Run without writing to the database");
+  console.log(`  --feedback "text"    Set user feedback for this item (implies --force).`);
+  console.log(`                       Pass an empty string ("") to clear existing feedback.`);
+  console.log("                       Omit the flag entirely to preserve existing feedback.");
 }
 
 function printDetailHelp(): void {
@@ -107,6 +110,18 @@ export interface ParsedCommand {
     output?: string;
     fixtures?: string;
     models?: string;
+    /**
+     * Three-state semantics:
+     *   undefined — flag not provided (preserve existing persisted feedback)
+     *   null      — flag provided with empty/whitespace value (clear feedback)
+     *   string    — flag provided with non-empty value (set feedback)
+     */
+    userFeedback?: string | null;
+    /**
+     * True when the --feedback flag was present in argv (regardless of value).
+     * Presence implies force at the call site.
+     */
+    feedbackProvided: boolean;
   };
 }
 
@@ -122,6 +137,8 @@ export function parseArgs(args: string[]): ParsedCommand {
     output: undefined as string | undefined,
     fixtures: undefined as string | undefined,
     models: undefined as string | undefined,
+    userFeedback: undefined as string | null | undefined,
+    feedbackProvided: false,
   };
 
   const positional: string[] = [];
@@ -175,6 +192,18 @@ export function parseArgs(args: string[]): ParsedCommand {
     } else if (arg === "--model") {
       // Consumed by parseCliOverrides in config.ts, skip the value
       i++;
+    } else if (arg === "--feedback") {
+      const next = args[i + 1];
+      if (next === undefined || next.startsWith("--")) {
+        throw new Error('--feedback requires a value (use "" to clear existing feedback)');
+      }
+      flags.feedbackProvided = true;
+      flags.userFeedback = next.trim() === "" ? null : next;
+      i++;
+    } else if (arg.startsWith("--feedback=")) {
+      const value = arg.slice("--feedback=".length);
+      flags.feedbackProvided = true;
+      flags.userFeedback = value.trim() === "" ? null : value;
     } else if (arg.startsWith("--")) {
       throw new Error(`Unknown option: ${arg}`);
     } else {
@@ -329,9 +358,10 @@ async function main(): Promise<void> {
       const resolved = await resolveLotId(parsedLot);
       log(`Analyzing lot ${resolved.lotId}...`);
       const result = await analyzeItem(resolved.lotId, config, {
-        force: parsed.flags.force,
+        force: parsed.flags.force || parsed.flags.feedbackProvided,
         dryRun: parsed.flags.dryRun,
         ssrData: resolved.ssrData,
+        userFeedback: parsed.flags.userFeedback,
       });
       printAnalysisSummary(result);
       process.exit(0);

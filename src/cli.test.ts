@@ -200,6 +200,57 @@ describe("parseArgs", () => {
   test("--output without value throws", () => {
     expect(() => parseArgs(["eval", "export", "--output"])).toThrow("--output requires a file path");
   });
+
+  test("--feedback with text sets userFeedback and implies force", () => {
+    const result = parseArgs(["analyze", "12345", "--feedback", "ignore the missing charger"]);
+    expect(result.flags.feedbackProvided).toBe(true);
+    expect(result.flags.userFeedback).toBe("ignore the missing charger");
+    // Call site combines feedbackProvided with force — verify the inputs the call site uses:
+    expect(result.flags.force || result.flags.feedbackProvided).toBe(true);
+  });
+
+  test("--feedback with empty string clears userFeedback and implies force", () => {
+    const result = parseArgs(["analyze", "12345", "--feedback", ""]);
+    expect(result.flags.feedbackProvided).toBe(true);
+    expect(result.flags.userFeedback).toBeNull();
+    expect(result.flags.force || result.flags.feedbackProvided).toBe(true);
+  });
+
+  test("--feedback with whitespace-only string clears userFeedback", () => {
+    const result = parseArgs(["analyze", "12345", "--feedback", "   "]);
+    expect(result.flags.feedbackProvided).toBe(true);
+    expect(result.flags.userFeedback).toBeNull();
+  });
+
+  test("--feedback=text equals form sets userFeedback and implies force", () => {
+    const result = parseArgs(["analyze", "12345", "--feedback=scratches on the side"]);
+    expect(result.flags.feedbackProvided).toBe(true);
+    expect(result.flags.userFeedback).toBe("scratches on the side");
+    expect(result.flags.force || result.flags.feedbackProvided).toBe(true);
+  });
+
+  test("--feedback= empty equals form clears userFeedback", () => {
+    const result = parseArgs(["analyze", "12345", "--feedback="]);
+    expect(result.flags.feedbackProvided).toBe(true);
+    expect(result.flags.userFeedback).toBeNull();
+  });
+
+  test("absent --feedback preserves userFeedback as undefined and does not imply force", () => {
+    const result = parseArgs(["analyze", "12345"]);
+    expect(result.flags.feedbackProvided).toBe(false);
+    expect(result.flags.userFeedback).toBeUndefined();
+    expect(result.flags.force || result.flags.feedbackProvided).toBe(false);
+  });
+
+  test("--feedback without a value throws", () => {
+    expect(() => parseArgs(["analyze", "12345", "--feedback"])).toThrow("--feedback requires a value");
+  });
+
+  test("--feedback followed by another flag throws", () => {
+    expect(() => parseArgs(["analyze", "12345", "--feedback", "--force"])).toThrow(
+      "--feedback requires a value"
+    );
+  });
 });
 
 describe("printAnalysisSummary", () => {
