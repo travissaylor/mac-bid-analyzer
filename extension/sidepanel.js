@@ -10,6 +10,9 @@ const loadingIndicator = document.getElementById("loading-indicator");
 const errorMessageEl = document.getElementById("error-message");
 const resultsEl = document.getElementById("results");
 const resultsDataEl = document.getElementById("results-data");
+const feedbackSectionEl = document.getElementById("feedback-section");
+const feedbackTextareaEl = document.getElementById("feedback-textarea");
+const feedbackSubmitBtn = document.getElementById("feedback-submit");
 
 let currentLotInfo = null;
 
@@ -135,6 +138,7 @@ function resolveDisplayData(item) {
     imageFlags,
     imageRiskScore,
     imageAnalysisSkipped,
+    userFeedback: item.user_feedback ?? null,
   };
 }
 
@@ -146,7 +150,8 @@ function renderResults(data) {
 
   // Header: product name and meta
   html.push(`<div class="analysis-header">`);
-  html.push(`<div class="product-name">${escapeHtml(data.productName)}</div>`);
+  const correctedPill = data.userFeedback !== null ? `<span class="pill">Corrected</span>` : "";
+  html.push(`<div class="product-name">${escapeHtml(data.productName)}${correctedPill}</div>`);
   html.push(`<div class="lot-meta">Lot #${data.lotId} &middot; ${escapeHtml(data.condition)} &middot; ${escapeHtml(data.auctionLocation || "Unknown")} (${escapeHtml(data.locationTier || "unknown")} tier)</div>`);
   html.push(`</div>`);
 
@@ -303,7 +308,7 @@ function showError(message, options = {}) {
       retryBtn.style.marginTop = "8px";
       retryBtn.addEventListener("click", () => {
         showError(null);
-        runAnalysis(false);
+        runAnalysis({ force: false });
       });
       errorMessageEl.appendChild(retryBtn);
     }
@@ -330,7 +335,7 @@ function renderAnalyzeButton() {
   const btn = document.createElement("button");
   btn.className = "btn btn-primary";
   btn.textContent = "Analyze";
-  btn.addEventListener("click", () => runAnalysis(false));
+  btn.addEventListener("click", () => runAnalysis({ force: false }));
   actionsEl.appendChild(btn);
 }
 
@@ -339,7 +344,7 @@ function renderReanalyzeButton() {
   const btn = document.createElement("button");
   btn.className = "btn btn-secondary";
   btn.textContent = "Re-analyze";
-  btn.addEventListener("click", () => runAnalysis(true));
+  btn.addEventListener("click", () => runAnalysis({ force: true }));
   actionsEl.appendChild(btn);
 }
 
@@ -387,7 +392,7 @@ async function checkCachedResults(lotId) {
 /**
  * Run analysis via POST /api/analyze
  */
-async function callAnalyze(lotId, force) {
+async function callAnalyze(lotId, options = {}) {
   const { backendUrl, apiToken } = await getSettings();
   const url = `${backendUrl}/api/analyze`;
   const headers = { "Content-Type": "application/json" };
@@ -395,12 +400,20 @@ async function callAnalyze(lotId, force) {
     headers["Authorization"] = `Bearer ${apiToken}`;
   }
 
+  const body = { input: currentLotInfo?.path || String(lotId) };
+  if (options.force) {
+    body.force = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(options, "userFeedback")) {
+    body.user_feedback = options.userFeedback;
+  }
+
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ input: currentLotInfo?.path || String(lotId), force }),
+      body: JSON.stringify(body),
     });
   } catch (networkErr) {
     const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
@@ -423,24 +436,34 @@ async function callAnalyze(lotId, force) {
 /**
  * Main analysis flow: show loading, call API, display results or error.
  */
-async function runAnalysis(force) {
+function disableFeedbackSubmit() {
+  feedbackSubmitBtn.disabled = true;
+}
+
+function enableFeedbackSubmit() {
+  feedbackSubmitBtn.disabled = false;
+}
+
+async function runAnalysis(options = {}) {
   if (!currentLotInfo) return;
 
   showError(null);
   hideResults();
   showLoading(true);
   disableActions();
+  disableFeedbackSubmit();
 
   const { apiToken } = await getSettings();
   if (!apiToken) {
     showError("API token not configured. Please set it in the extension options (right-click the extension icon > Options).");
     showLoading(false);
     enableActions();
+    enableFeedbackSubmit();
     return;
   }
 
   try {
-    const data = await callAnalyze(currentLotInfo.lotId, force);
+    const data = await callAnalyze(currentLotInfo.lotId, options);
     showResults(data);
     renderReanalyzeButton();
   } catch (err) {
@@ -449,6 +472,7 @@ async function runAnalysis(force) {
   } finally {
     showLoading(false);
     enableActions();
+    enableFeedbackSubmit();
   }
 }
 
@@ -466,11 +490,15 @@ async function handleLotDetected(lotInfo) {
   hideResults();
   showLoading(true);
   actionsEl.innerHTML = "";
+  feedbackTextareaEl.value = "";
 
   // Check for cached results first (FR-8)
   try {
     const cached = await checkCachedResults(lotInfo.lotId);
     if (cached) {
+      if (cached.user_feedback !== null && cached.user_feedback !== undefined) {
+        feedbackTextareaEl.value = cached.user_feedback;
+      }
       showResults(cached);
       renderReanalyzeButton();
     } else {
@@ -491,7 +519,13 @@ function handleLotNotDetected() {
   showError(null);
   hideResults();
   actionsEl.innerHTML = "";
+  feedbackTextareaEl.value = "";
 }
+
+feedbackSubmitBtn.addEventListener("click", () => {
+  if (!currentLotInfo) return;
+  runAnalysis({ userFeedback: feedbackTextareaEl.value });
+});
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === "LOT_DETECTED") {
