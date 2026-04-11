@@ -29,6 +29,8 @@ export interface LLMInput {
   ebayFiltersRelaxed: boolean | null;
   /** Summary of image red flags to include as context for the price estimate. */
   imageRedFlags?: string | null;
+  /** Optional user-provided context to inject into the prompt as authoritative. */
+  userContext?: string | null;
 }
 
 export interface LLMProvider {
