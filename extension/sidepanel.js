@@ -323,11 +323,13 @@ function showResults(data) {
   const displayData = resolveDisplayData(data);
   resultsDataEl.innerHTML = renderResults(displayData);
   resultsEl.style.display = "block";
+  feedbackSectionEl.style.display = "block";
 }
 
 function hideResults() {
   resultsEl.style.display = "none";
   resultsDataEl.innerHTML = "";
+  feedbackSectionEl.style.display = "none";
 }
 
 function renderAnalyzeButton() {

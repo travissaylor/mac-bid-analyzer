@@ -239,6 +239,7 @@
       margin-top: 8px;
     }
     #feedback-section {
+      display: none;
       margin-bottom: 12px;
       padding: 10px 12px;
       border: 1px solid #e0e0e0;
@@ -290,18 +291,18 @@
   </div>
   <div id="lot-info">
     <div id="lot-identifier"></div>
+    <div id="actions"></div>
+    <div id="loading-indicator">Analyzing lot...</div>
+    <div id="error-message"></div>
+    <div id="results">
+      <div id="results-data"></div>
+    </div>
     <div id="feedback-section">
       <label id="feedback-label" for="feedback-textarea">Correction / context</label>
       <textarea id="feedback-textarea" placeholder="Add notes to correct or guide the analysis (e.g. 'this is actually a 2nd-gen model', 'box shows water damage')"></textarea>
       <div id="feedback-actions">
         <button id="feedback-submit" class="btn btn-primary" type="button">Save &amp; re-analyze</button>
       </div>
-    </div>
-    <div id="actions"></div>
-    <div id="loading-indicator">Analyzing lot...</div>
-    <div id="error-message"></div>
-    <div id="results">
-      <div id="results-data"></div>
     </div>
   </div>
   <script src="sidepanel.js"></script>
