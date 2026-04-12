@@ -26,6 +26,8 @@ export interface SearchQueryInput {
   upc: string | null;
   category: string | null;
   condition: string;
+  /** Optional user-provided context to inject into the prompt as authoritative. */
+  userContext?: string | null;
 }
 
 function buildSearchQueryUserPrompt(input: SearchQueryInput): string {
@@ -34,6 +36,9 @@ function buildSearchQueryUserPrompt(input: SearchQueryInput): string {
     input.description ? `Description: ${input.description}` : null,
     input.upc ? `UPC: ${input.upc}` : null,
     input.category ? `Category: ${input.category}` : null,
+    input.userContext && input.userContext.trim().length > 0
+      ? `\nUser context (treat as authoritative):\n${input.userContext}`
+      : null,
   ]
     .filter(Boolean)
     .join("\n");

@@ -811,6 +811,208 @@ describe("analyze", () => {
         process.cwd = origCwd;
       }
     });
+
+    describe("user feedback (US-002)", () => {
+      it("preserves persisted user_feedback when option is undefined on re-analyze", async () => {
+        setupMocks();
+        const config = makeConfig();
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+
+        try {
+          // Initial analysis with explicit feedback string
+          await analyzeItem(12345, config, { userFeedback: "prev user note" });
+
+          // Re-analyze with force but no userFeedback option — should preserve "prev user note"
+          clearBuildingsCache();
+          clearTokenCache();
+          setupMocks();
+          const result = await analyzeItem(12345, config, { force: true });
+          expect(result.item.user_feedback).toBe("prev user note");
+        } finally {
+          process.cwd = origCwd;
+        }
+      });
+
+      it("clears persisted user_feedback when option is explicitly null", async () => {
+        setupMocks();
+        const config = makeConfig();
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+
+        try {
+          await analyzeItem(12345, config, { userFeedback: "some note" });
+
+          clearBuildingsCache();
+          clearTokenCache();
+          setupMocks();
+          const result = await analyzeItem(12345, config, { force: true, userFeedback: null });
+          expect(result.item.user_feedback).toBeNull();
+        } finally {
+          process.cwd = origCwd;
+        }
+      });
+
+      it("sets user_feedback from a string option", async () => {
+        setupMocks();
+        const config = makeConfig();
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+
+        try {
+          const result = await analyzeItem(12345, config, { userFeedback: "the box is sealed" });
+          expect(result.item.user_feedback).toBe("the box is sealed");
+        } finally {
+          process.cwd = origCwd;
+        }
+      });
+
+      it("suppresses condition-based manual review when feedback is non-empty", async () => {
+        setupMocks({
+          lotData: {
+            id: 12345,
+            auction_id: 100,
+            lot_number: "42",
+            product_name: "Damaged Widget",
+            upc: "012345678901",
+            condition: "DAMAGED",
+            retail_price: 79.99,
+            building_id: 15,
+            current_bid: 5.00,
+            is_open: true,
+            total_bids: 3,
+            watchers_count: 7,
+          },
+        });
+        const config = makeConfig();
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+
+        try {
+          const result = await analyzeItem(12345, config, {
+            userFeedback: "only the packaging is scuffed; product is fine",
+          });
+          // Feedback suppresses the condition gate — recommendation should happen via eBay
+          expect(result.item.needs_manual_review).toBe(0);
+          expect(result.item.analysis_source).toBe("ebay");
+          expect(result.item.recommended_max_bid).not.toBeNull();
+          expect(result.item.recommended_max_bid!).toBeGreaterThan(0);
+          expect(result.item.manual_review_reason).toBeNull();
+        } finally {
+          process.cwd = origCwd;
+        }
+      });
+
+      it("still fires image-derived manual review even when feedback is present", async () => {
+        const lotData = {
+          id: 12345,
+          auction_id: 100,
+          lot_number: "42",
+          product_name: "Ninja Blender NJ600",
+          upc: "012345678901",
+          condition: "OPEN BOX",
+          retail_price: 79.99,
+          building_id: 15,
+          current_bid: 5.00,
+          is_open: true,
+          total_bids: 3,
+          watchers_count: 7,
+          images: [
+            "https://media.mac.bid/stock.jpg",
+            "https://media.mac.bid/photo1.jpg",
+          ],
+        };
+        const buildings = [
+          { id: 15, name: "Robinson", sales_tax: 0.06, transfer_destinations: "20,21" },
+        ];
+        const ebayItems = [
+          { price: { value: "50.00" } },
+          { price: { value: "55.00" } },
+          { price: { value: "52.00" } },
+          { price: { value: "58.00" } },
+          { price: { value: "60.00" } },
+        ];
+
+        mockFetch(async (url, init) => {
+          const u = String(url);
+          if (u.includes("/map-bid/ddb/lot/")) {
+            // Return the SSR-ish lot data via DDB endpoint
+            return new Response(JSON.stringify(lotData));
+          }
+          if (u.includes("/buildings")) {
+            return new Response(JSON.stringify(buildings));
+          }
+          if (u.includes("oauth2/token")) {
+            return new Response(JSON.stringify({ access_token: "test-token", expires_in: 7200 }));
+          }
+          if (u.includes("media.mac.bid")) {
+            // Image fetch for image analysis — return a tiny PNG
+            const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+            return new Response(bytes, { headers: { "content-type": "image/png" } });
+          }
+          if (u.includes("buy/browse")) {
+            return new Response(JSON.stringify({ total: ebayItems.length, itemSummaries: ebayItems }));
+          }
+          if (u.includes("generativelanguage.googleapis.com")) {
+            const body = typeof init?.body === "string" ? init.body : "";
+            // Image analysis prompt contains "product condition inspector"
+            if (body.includes("product condition inspector") || body.includes("stockImageOnly")) {
+              return new Response(JSON.stringify({
+                candidates: [{
+                  content: {
+                    parts: [{
+                      text: '{"findings":[{"type":"damage","severity":"high","description":"cracked screen","imageIndex":1}],"overallRisk":80,"stockImageOnly":false}',
+                    }],
+                  },
+                }],
+              }));
+            }
+            // Search query prompt contains "Extract an optimized eBay search query"
+            if (body.includes("Extract an optimized eBay search query")) {
+              return new Response(JSON.stringify({
+                candidates: [{
+                  content: {
+                    parts: [{ text: "Ninja NJ600 Blender" }],
+                  },
+                }],
+              }));
+            }
+            // Otherwise: price estimate
+            return new Response(JSON.stringify({
+              candidates: [{
+                content: {
+                  parts: [{ text: '{"low": 35.00, "mid": 50.00, "high": 65.00, "confidence": 80, "reasoning": "ok", "comparables": []}' }],
+                },
+              }],
+            }));
+          }
+          return new Response("Unknown", { status: 404 });
+        });
+
+        const config = makeConfig({
+          env: {
+            ebayAppId: "test-app-id",
+            ebayAppSecret: "test-secret",
+            geminiApiKey: "test-gemini-key",
+            openaiApiKey: "",
+          },
+        });
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+
+        try {
+          const result = await analyzeItem(12345, config, {
+            userFeedback: "I inspected this in person, looks great",
+          });
+          // Image-derived manual review must still fire
+          expect(result.item.needs_manual_review).toBe(1);
+          expect(result.item.manual_review_reason).toContain("Image red flags");
+          expect(result.item.user_feedback).toBe("I inspected this in person, looks great");
+        } finally {
+          process.cwd = origCwd;
+        }
+      });
+    });
   });
 
   describe("extractImageUrls", () => {

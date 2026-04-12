@@ -52,6 +52,7 @@ function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
     manual_review_reason: null,
     analyzed_at: "2026-03-24T12:00:00Z",
     analysis_source: "ebay",
+    user_feedback: null,
     ...overrides,
   };
 }

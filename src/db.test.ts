@@ -57,6 +57,7 @@ function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
     manual_review_reason: null,
     analyzed_at: "2026-03-22T10:00:00Z",
     analysis_source: "ebay",
+    user_feedback: null,
     ...overrides,
   };
 }
@@ -110,6 +111,29 @@ describe("upsertAnalyzedItem", () => {
     expect(result!.product_name).toBe("MacBook Pro 14");
     expect(result!.ebay_sold_median).toBe(1400);
     expect(result!.recommended_max_bid).toBe(700);
+  });
+
+  test("inserts an item with user_feedback", () => {
+    const item = makeItem({ lot_id: 555, user_feedback: "This is actually a used laptop, not new" });
+    upsertAnalyzedItem(db, item);
+    const result = getItemByLotId(db, 555);
+    expect(result).not.toBeNull();
+    expect(result!.user_feedback).toBe("This is actually a used laptop, not new");
+  });
+
+  test("inserts an item without user_feedback (null)", () => {
+    const item = makeItem({ lot_id: 556 });
+    upsertAnalyzedItem(db, item);
+    const result = getItemByLotId(db, 556);
+    expect(result).not.toBeNull();
+    expect(result!.user_feedback).toBeNull();
+  });
+
+  test("reads back user_feedback after upsert update", () => {
+    upsertAnalyzedItem(db, makeItem({ lot_id: 557, user_feedback: "first note" }));
+    upsertAnalyzedItem(db, makeItem({ lot_id: 557, user_feedback: "updated note" }));
+    const result = getItemByLotId(db, 557);
+    expect(result!.user_feedback).toBe("updated note");
   });
 
   test("upserts an existing item", () => {

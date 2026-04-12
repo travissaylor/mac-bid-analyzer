@@ -259,19 +259,33 @@ export interface AnalyzeResult {
 export async function analyzeItem(
   lotId: number,
   config: AppConfig,
-  options: { force?: boolean; dryRun?: boolean; ssrData?: Record<string, unknown> } = {}
+  options: { force?: boolean; dryRun?: boolean; ssrData?: Record<string, unknown>; userFeedback?: string | null } = {}
 ): Promise<AnalyzeResult> {
   const db = openDatabase();
 
   try {
+    // Read any existing row — used for both the cache check and for
+    // three-state user-feedback resolution below.
+    const existingRow = getItemByLotId(db, lotId);
+
     // Check if already analyzed
-    if (!options.force) {
-      const existing = getItemByLotId(db, lotId);
-      if (existing) {
-        log(`Lot ${lotId} already analyzed. Use --force to re-analyze.`);
-        return { item: existing, skipped: true };
-      }
+    if (!options.force && existingRow) {
+      log(`Lot ${lotId} already analyzed. Use --force to re-analyze.`);
+      return { item: existingRow, skipped: true };
     }
+
+    // Three-state resolution for user feedback:
+    //  - undefined → preserve existing persisted value (if any)
+    //  - null      → clear
+    //  - string    → set-and-use
+    const resolvedFeedback: string | null =
+      options.userFeedback === undefined
+        ? (existingRow?.user_feedback ?? null)
+        : options.userFeedback;
+
+    const hasFeedback =
+      typeof resolvedFeedback === "string" && resolvedFeedback.trim().length > 0;
+    const feedbackForPrompts = hasFeedback ? resolvedFeedback : null;
 
     // Fetch lot data from mac.bid
     log(`Fetching lot ${lotId} from mac.bid...`);
@@ -306,9 +320,14 @@ export async function analyzeItem(
     }
     log(`Location: ${locationInfo.tier} (building ${lot.building_id}, cost=$${locationInfo.extraCost})`);
 
-    // Check if condition requires manual review
+    // Check if condition requires manual review. When the user has supplied
+    // feedback, suppress the condition-based gate so a DAMAGED lot with user
+    // context still gets a recommendation. Image-derived manual review reasons
+    // below still fire regardless.
     const conditionUpper = lot.condition.toUpperCase();
-    const needsManualReview = config.manual_review_conditions.includes(conditionUpper);
+    let needsManualReview = hasFeedback
+      ? false
+      : config.manual_review_conditions.includes(conditionUpper);
     let manualReviewReason: string | null = null;
 
     if (needsManualReview) {
@@ -332,6 +351,7 @@ export async function analyzeItem(
           condition: lot.condition,
           category: lot.category,
           imageUrls: lot.image_urls,
+          userContext: feedbackForPrompts,
         });
 
         // If LLM says all images are stock/generic, treat as skipped
@@ -359,6 +379,7 @@ export async function analyzeItem(
         upc: lot.upc,
         category: lot.category,
         condition: lot.condition,
+        userContext: feedbackForPrompts,
       },
       config.llm_model,
       config.env,
@@ -418,6 +439,7 @@ export async function analyzeItem(
           ebaySearchStrategy: ebayResult?.strategy ?? null,
           ebayFiltersRelaxed: filtersRelaxed || null,
           imageRedFlags: imageRedFlagsSummary,
+          userContext: feedbackForPrompts,
         });
 
         llmEstimateLow = llmResult.low;
@@ -554,6 +576,7 @@ export async function analyzeItem(
       manual_review_reason: manualReviewReason,
       analyzed_at: new Date().toISOString(),
       analysis_source: analysisSource,
+      user_feedback: resolvedFeedback,
     };
 
     // Store in DB

@@ -26,6 +26,8 @@ export interface ImageAnalysisInput {
   category: string | null;
   /** All image URLs. First is stock, rest are actual product photos. */
   imageUrls: string[];
+  /** Optional user-provided context to inject into the prompt as authoritative. */
+  userContext?: string | null;
 }
 
 // --- Severity penalties ---
@@ -96,6 +98,12 @@ export function buildImageAnalysisUserPrompt(input: ImageAnalysisInput): string 
 
   lines.push("");
   lines.push("Inspect all actual product photos carefully and report any issues found.");
+
+  if (input.userContext && input.userContext.trim().length > 0) {
+    lines.push("");
+    lines.push("User context (treat as authoritative):");
+    lines.push(input.userContext);
+  }
 
   return lines.join("\n");
 }

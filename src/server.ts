@@ -42,16 +42,43 @@ function validateAuth(request: Request): boolean {
   return match[1] === token;
 }
 
+function normalizeFeedback(
+  body: Record<string, unknown>
+): { userFeedback: string | null | undefined; forced: boolean } {
+  if (!("user_feedback" in body)) {
+    return { userFeedback: undefined, forced: false };
+  }
+  const v = body.user_feedback;
+  if (v === null || v === "") {
+    return { userFeedback: null, forced: true };
+  }
+  if (typeof v === "string") {
+    return { userFeedback: v, forced: true };
+  }
+  throw new Error("user_feedback must be a string or null");
+}
+
 async function handleAnalyze(request: Request): Promise<Response> {
-  let body: { input?: string; force?: boolean };
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return errorResponse("Invalid JSON body", 400);
   }
 
   if (!body.input || typeof body.input !== "string") {
     return errorResponse("Missing required field: input", 400);
+  }
+
+  let userFeedback: string | null | undefined;
+  let feedbackForced: boolean;
+  try {
+    const normalized = normalizeFeedback(body);
+    userFeedback = normalized.userFeedback;
+    feedbackForced = normalized.forced;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return errorResponse(message, 400);
   }
 
   try {
@@ -62,8 +89,9 @@ async function handleAnalyze(request: Request): Promise<Response> {
     const resolved = await resolveLotId(parsedLot);
     log(`API: Analyzing lot ${resolved.lotId}...`);
     const result = await analyzeItem(resolved.lotId, config, {
-      force: body.force ?? false,
+      force: Boolean(body.force) || feedbackForced,
       ssrData: resolved.ssrData,
+      userFeedback,
     });
 
     return jsonResponse(result.item);

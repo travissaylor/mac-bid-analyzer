@@ -63,6 +63,9 @@ export function buildUserPrompt(input: LLMInput): string {
     ebayLine,
     ...provenanceLines,
     input.imageRedFlags ? `\nImage Analysis Red Flags:\n${input.imageRedFlags}\nFactor these physical condition issues into your estimate — they may reduce the selling price.` : null,
+    input.userContext && input.userContext.trim().length > 0
+      ? `\nIf user context contradicts your own read of the product, prefer the user context.\n\nUser context (treat as authoritative):\n${input.userContext}`
+      : null,
   ].filter(Boolean).join("\n");
 }
 
