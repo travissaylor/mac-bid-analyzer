@@ -541,3 +541,22 @@ chrome.runtime.onMessage.addListener((message) => {
     handleLotNotDetected();
   }
 });
+
+// On panel open, proactively ask the active tab for its lot status.
+// This handles the reopen scenario where the content script's initial
+// LOT_DETECTED message was sent before the panel existed.
+(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_LOT_STATUS" });
+      if (response?.lotInfo) {
+        handleLotDetected(response.lotInfo);
+      } else {
+        handleLotNotDetected();
+      }
+    }
+  } catch {
+    // Content script may not be injected (non-mac.bid tab); ignore.
+  }
+})();

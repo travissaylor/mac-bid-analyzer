@@ -79,3 +79,12 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // Also listen for popstate (back/forward navigation)
 window.addEventListener("popstate", notifyLotStatus);
+
+// Respond to status requests from the side panel (e.g. when it reopens
+// after the initial LOT_DETECTED message was already sent).
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "GET_LOT_STATUS") {
+    const lotInfo = extractLotInfo(window.location.href);
+    sendResponse({ lotInfo });
+  }
+});
