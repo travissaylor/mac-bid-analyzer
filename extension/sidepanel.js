@@ -138,7 +138,7 @@ function resolveDisplayData(item) {
     imageFlags,
     imageRiskScore,
     imageAnalysisSkipped,
-    userFeedback: item.user_feedback ?? null,
+    userFeedback: item.user_feedback || null,
   };
 }
 
@@ -324,6 +324,14 @@ function showResults(data) {
   resultsDataEl.innerHTML = renderResults(displayData);
   resultsEl.style.display = "block";
   feedbackSectionEl.style.display = "block";
+
+  // Populate the feedback textarea from the response so it persists
+  // across navigation (GET /api/lot) and re-analysis (POST /api/analyze).
+  if (displayData.userFeedback !== null && displayData.userFeedback !== undefined) {
+    feedbackTextareaEl.value = displayData.userFeedback;
+  } else {
+    feedbackTextareaEl.value = "";
+  }
 }
 
 function hideResults() {
@@ -498,9 +506,6 @@ async function handleLotDetected(lotInfo) {
   try {
     const cached = await checkCachedResults(lotInfo.lotId);
     if (cached) {
-      if (cached.user_feedback !== null && cached.user_feedback !== undefined) {
-        feedbackTextareaEl.value = cached.user_feedback;
-      }
       showResults(cached);
       renderReanalyzeButton();
     } else {
@@ -536,3 +541,22 @@ chrome.runtime.onMessage.addListener((message) => {
     handleLotNotDetected();
   }
 });
+
+// On panel open, proactively ask the active tab for its lot status.
+// This handles the reopen scenario where the content script's initial
+// LOT_DETECTED message was sent before the panel existed.
+(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_LOT_STATUS" });
+      if (response?.lotInfo) {
+        handleLotDetected(response.lotInfo);
+      } else {
+        handleLotNotDetected();
+      }
+    }
+  } catch {
+    // Content script may not be injected (non-mac.bid tab); ignore.
+  }
+})();
