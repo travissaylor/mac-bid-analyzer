@@ -138,7 +138,7 @@ function resolveDisplayData(item) {
     imageFlags,
     imageRiskScore,
     imageAnalysisSkipped,
-    userFeedback: item.user_feedback ?? null,
+    userFeedback: item.user_feedback || null,
   };
 }
 
