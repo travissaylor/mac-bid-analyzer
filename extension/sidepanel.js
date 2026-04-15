@@ -324,6 +324,14 @@ function showResults(data) {
   resultsDataEl.innerHTML = renderResults(displayData);
   resultsEl.style.display = "block";
   feedbackSectionEl.style.display = "block";
+
+  // Populate the feedback textarea from the response so it persists
+  // across navigation (GET /api/lot) and re-analysis (POST /api/analyze).
+  if (displayData.userFeedback !== null && displayData.userFeedback !== undefined) {
+    feedbackTextareaEl.value = displayData.userFeedback;
+  } else {
+    feedbackTextareaEl.value = "";
+  }
 }
 
 function hideResults() {
@@ -498,9 +506,6 @@ async function handleLotDetected(lotInfo) {
   try {
     const cached = await checkCachedResults(lotInfo.lotId);
     if (cached) {
-      if (cached.user_feedback !== null && cached.user_feedback !== undefined) {
-        feedbackTextareaEl.value = cached.user_feedback;
-      }
       showResults(cached);
       renderReanalyzeButton();
     } else {
