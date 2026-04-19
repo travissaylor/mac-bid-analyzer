@@ -1,4 +1,6 @@
 .env
+.env.local
 data.db
 node_modules
 dist
+.claude/settings.local.json
