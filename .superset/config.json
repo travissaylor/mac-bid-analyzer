@@ -1,0 +1,9 @@
+{
+  "setup": [
+    "./scripts/wt setup ."
+  ],
+  "teardown": [
+    "./scripts/wt teardown ."
+  ],
+  "run": []
+}
