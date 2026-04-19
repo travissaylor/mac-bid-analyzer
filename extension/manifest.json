@@ -10,7 +10,9 @@
   ],
   "host_permissions": [
     "*://*.mac.bid/*",
-    "*://mac.bid/*"
+    "*://mac.bid/*",
+    "http://*/*",
+    "https://*/*"
   ],
   "side_panel": {
     "default_path": "sidepanel.html"

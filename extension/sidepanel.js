@@ -369,6 +369,20 @@ function enableActions() {
 }
 
 /**
+ * Route backend fetches through the service worker. This avoids
+ * mixed-content blocking when the backend is plain HTTP (e.g. a home
+ * server) and keeps request handling consistent with the content script.
+ */
+async function backendFetch(opts) {
+  const resp = await chrome.runtime.sendMessage({
+    action: "BACKEND_FETCH",
+    ...opts,
+  });
+  if (!resp) throw new Error("No response from background");
+  return resp;
+}
+
+/**
  * Check for cached results. Prefer lookup by (auction_id, lot_number) since
  * the URL's lot id may be an alphanumeric lot number (e.g. "3173X") rather
  * than the numeric internal lot_id that is the DB primary key.
@@ -394,10 +408,8 @@ async function checkCachedResults(lotInfo) {
     return null;
   }
 
-  let response;
-  try {
-    response = await fetch(url, { headers });
-  } catch (networkErr) {
+  const response = await backendFetch({ url, method: "GET", headers });
+  if (response.error) {
     const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
     err.isNetworkError = true;
     throw err;
@@ -408,7 +420,7 @@ async function checkCachedResults(lotInfo) {
   }
 
   if (response.ok) {
-    return await response.json();
+    return response.body;
   }
   // 404 means not cached; other errors we ignore for cache check
   return null;
@@ -433,14 +445,13 @@ async function callAnalyze(lotId, options = {}) {
     body.user_feedback = options.userFeedback;
   }
 
-  let response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-  } catch (networkErr) {
+  const response = await backendFetch({
+    url,
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (response.error) {
     const err = new Error(`Cannot connect to backend at ${backendUrl}. Is the server running?`);
     err.isNetworkError = true;
     throw err;
@@ -451,11 +462,10 @@ async function callAnalyze(lotId, options = {}) {
   }
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed (${response.status})`);
+    throw new Error((response.body && response.body.error) || `Request failed (${response.status})`);
   }
 
-  return await response.json();
+  return response.body;
 }
 
 /**

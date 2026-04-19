@@ -258,6 +258,19 @@ function noTokenError() {
   return err;
 }
 
+async function backendFetch(opts) {
+  // Route through the service worker so fetches aren't blocked by
+  // mixed-content rules when the content script runs on HTTPS mac.bid
+  // and the configured backend is plain HTTP (e.g. a home server).
+  const resp = await chrome.runtime.sendMessage({
+    action: "BACKEND_FETCH",
+    ...opts,
+  });
+  if (!resp) throw new Error("No response from background");
+  if (resp.error) throw new Error(resp.error);
+  return resp;
+}
+
 async function fetchCached(lotInfo) {
   const { backendUrl, apiToken } = await getSettings();
   if (!apiToken) throw noTokenError();
@@ -280,13 +293,15 @@ async function fetchCached(lotInfo) {
     return null;
   }
 
-  const resp = await fetch(url, {
+  const resp = await backendFetch({
+    url,
+    method: "GET",
     headers: { Authorization: `Bearer ${apiToken}` },
   });
   if (resp.status === 404) return null;
   if (resp.status === 401) throw new Error("Invalid API token");
   if (!resp.ok) throw new Error(`Backend error (${resp.status})`);
-  return await resp.json();
+  return resp.body;
 }
 
 async function postAnalyze(lotInfo, force) {
@@ -294,7 +309,8 @@ async function postAnalyze(lotInfo, force) {
   if (!apiToken) throw noTokenError();
   const body = { input: lotInfo.path || String(lotInfo.lotId) };
   if (force) body.force = true;
-  const resp = await fetch(`${backendUrl}/api/analyze`, {
+  const resp = await backendFetch({
+    url: `${backendUrl}/api/analyze`,
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiToken}`,
@@ -304,10 +320,9 @@ async function postAnalyze(lotInfo, force) {
   });
   if (resp.status === 401) throw new Error("Invalid API token");
   if (!resp.ok) {
-    const errBody = await resp.json().catch(() => ({}));
-    throw new Error(errBody.error || `Backend error (${resp.status})`);
+    throw new Error((resp.body && resp.body.error) || `Backend error (${resp.status})`);
   }
-  return await resp.json();
+  return resp.body;
 }
 
 // ---------- Flow ----------
