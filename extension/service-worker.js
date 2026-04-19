@@ -15,6 +15,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.action.setBadgeText({ tabId, text: "LOT" });
   } else if (message.action === "LOT_NOT_DETECTED") {
     chrome.action.setBadgeText({ tabId, text: "" });
+  } else if (message.action === "OPEN_SIDE_PANEL") {
+    // Must be called synchronously in response to the user-gesture message
+    // so Chrome preserves the activation.
+    chrome.sidePanel.open({ tabId }).catch((err) => {
+      console.error("sidePanel.open failed:", err);
+    });
   }
 });
 

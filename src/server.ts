@@ -1,4 +1,9 @@
-import { openDatabase, getItemByLotId } from "./db";
+import {
+  openDatabase,
+  getItemByLotId,
+  getItemByAuctionAndLotNumber,
+  getItemByLotNumber,
+} from "./db";
 import type { AnalyzedItem } from "./db";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
 import { loadConfig } from "./config";
@@ -120,6 +125,34 @@ function handleGetLot(lotIdStr: string): Response {
   }
 }
 
+function handleGetLotByAuctionLot(url: URL): Response {
+  const auctionIdStr = url.searchParams.get("auction_id");
+  const lotNumber = url.searchParams.get("lot_number");
+  if (!lotNumber) {
+    return errorResponse("Missing lot_number", 400);
+  }
+
+  const db = openDatabase();
+  try {
+    let item: AnalyzedItem | null = null;
+    if (auctionIdStr) {
+      const auctionId = Number(auctionIdStr);
+      if (isNaN(auctionId) || auctionId <= 0) {
+        return errorResponse("Invalid auction_id", 400);
+      }
+      item = getItemByAuctionAndLotNumber(db, auctionId, lotNumber);
+    } else {
+      item = getItemByLotNumber(db, lotNumber);
+    }
+    if (!item) {
+      return errorResponse("Not found", 404);
+    }
+    return jsonResponse(item);
+  } finally {
+    db.close();
+  }
+}
+
 /** The core request handler, exported for direct testing without a live server. */
 export function handleRequest(request: Request): Response | Promise<Response> {
   const url = new URL(request.url);
@@ -143,6 +176,11 @@ export function handleRequest(request: Request): Response | Promise<Response> {
   const lotMatch = url.pathname.match(/^\/api\/lot\/(\d+)$/);
   if (request.method === "GET" && lotMatch) {
     return handleGetLot(lotMatch[1]);
+  }
+
+  // GET /api/lot?auction_id=X&lot_number=Y
+  if (request.method === "GET" && url.pathname === "/api/lot") {
+    return handleGetLotByAuctionLot(url);
   }
 
   return errorResponse("Not found", 404);

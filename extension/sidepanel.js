@@ -369,14 +369,29 @@ function enableActions() {
 }
 
 /**
- * Check for cached results via GET /api/lot/:lotId
+ * Check for cached results. Prefer lookup by (auction_id, lot_number) since
+ * the URL's lot id may be an alphanumeric lot number (e.g. "3173X") rather
+ * than the numeric internal lot_id that is the DB primary key.
  */
-async function checkCachedResults(lotId) {
+async function checkCachedResults(lotInfo) {
   const { backendUrl, apiToken } = await getSettings();
-  const url = `${backendUrl}/api/lot/${lotId}`;
   const headers = {};
   if (apiToken) {
     headers["Authorization"] = `Bearer ${apiToken}`;
+  }
+
+  let url;
+  const lotNumber = lotInfo.lotNumber || lotInfo.lotId;
+  if (lotNumber) {
+    const params = new URLSearchParams({ lot_number: String(lotNumber) });
+    if (lotInfo.auctionId && /^\d+$/.test(String(lotInfo.auctionId))) {
+      params.set("auction_id", String(lotInfo.auctionId));
+    }
+    url = `${backendUrl}/api/lot?${params.toString()}`;
+  } else if (/^\d+$/.test(String(lotInfo.lotId))) {
+    url = `${backendUrl}/api/lot/${lotInfo.lotId}`;
+  } else {
+    return null;
   }
 
   let response;
@@ -504,7 +519,7 @@ async function handleLotDetected(lotInfo) {
 
   // Check for cached results first (FR-8)
   try {
-    const cached = await checkCachedResults(lotInfo.lotId);
+    const cached = await checkCachedResults(lotInfo);
     if (cached) {
       showResults(cached);
       renderReanalyzeButton();
