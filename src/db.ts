@@ -263,6 +263,30 @@ export function getItemByLotId(db: Database, lotId: number): AnalyzedItem | null
   return (stmt.get(lotId) as AnalyzedItem | null) ?? null;
 }
 
+export function getItemByAuctionAndLotNumber(
+  db: Database,
+  auctionId: number,
+  lotNumber: string
+): AnalyzedItem | null {
+  const stmt = db.prepare(
+    "SELECT * FROM analyzed_items WHERE auction_id = ? AND lot_number = ?"
+  );
+  return (stmt.get(auctionId, lotNumber) as AnalyzedItem | null) ?? null;
+}
+
+export function getItemByLotNumber(
+  db: Database,
+  lotNumber: string
+): AnalyzedItem | null {
+  // Lot detail URLs on mac.bid use a human-readable auction code (e.g.
+  // "WAB2604-19-A1") that we don't store, so we fall back to looking up by
+  // lot_number alone and picking the most recently analyzed match.
+  const stmt = db.prepare(
+    "SELECT * FROM analyzed_items WHERE lot_number = ? ORDER BY analyzed_at DESC LIMIT 1"
+  );
+  return (stmt.get(lotNumber) as AnalyzedItem | null) ?? null;
+}
+
 export function getOpenItems(db: Database): AnalyzedItem[] {
   const stmt = db.prepare("SELECT * FROM analyzed_items WHERE is_open = 1 ORDER BY deal_score DESC");
   return stmt.all() as AnalyzedItem[];
