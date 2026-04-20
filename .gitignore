@@ -3,4 +3,16 @@
 data.db
 node_modules
 dist
+dist/
+extension/shared/config.generated.ts
 .claude/settings.local.json
+
+# Xcode (Safari extension)
+**/xcuserdata/
+**/*.xcuserstate
+**/DerivedData/
+**/build/
+
+# macOS clutter
+.DS_Store
+**/.DS_Store
