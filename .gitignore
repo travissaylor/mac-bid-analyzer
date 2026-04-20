@@ -12,3 +12,7 @@ extension/shared/config.generated.ts
 **/*.xcuserstate
 **/DerivedData/
 **/build/
+
+# macOS clutter
+.DS_Store
+**/.DS_Store
