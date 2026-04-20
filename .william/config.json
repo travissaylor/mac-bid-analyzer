@@ -1,6 +1,10 @@
 {
   "projectName": "mac-bid-analyzer",
+  "williamPath": "/Users/tsaylor/projects/william",
   "git": {
-    "workflow": "branch"
+    "workflow": "branch", 
+    "worktreeSetupCommands": [
+      "cp /Users/tsaylor/projects/mac-bid-analyzer/.env ./.env"
+    ]
   }
 }
