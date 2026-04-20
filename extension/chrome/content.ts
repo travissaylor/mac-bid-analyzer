@@ -332,26 +332,25 @@ function handleShadowClick(event: Event): void {
   const target = event.target as Element | null;
   if (!target) return;
 
-  // Modal-dismiss is a special case: the backdrop carries the data-action,
-  // but clicks bubbled up from inside .modal-content should NOT dismiss.
-  const dismissTarget = target.closest('[data-action="modal-dismiss"]');
-  if (dismissTarget) {
-    // If the click originated inside .modal-content (and not on the close
-    // button itself), don't dismiss.
-    const isCloseBtn = (target as HTMLElement).closest(".modal-close");
-    if (!isCloseBtn) {
-      const insideContent = (target as HTMLElement).closest(".modal-content");
-      if (insideContent) return;
-    }
-    closeModal();
-    return;
-  }
-
+  // Nearest-ancestor wins: the feedback-submit button's own data-action
+  // resolves before the backdrop's ancestor data-action, so clicks inside
+  // .modal-content dispatch correctly instead of being swallowed by the
+  // dismiss handler.
   const actionEl = target.closest("[data-action]") as HTMLElement | null;
   if (!actionEl) return;
   const action = actionEl.dataset.action;
 
-  if (action === "analyze") {
+  if (action === "modal-dismiss") {
+    // Dismiss fires for two elements sharing this action: the backdrop
+    // (click outside the content) and the X close button (inside content).
+    // Clicks on other content (textarea, whitespace) bubble to the backdrop
+    // but must not dismiss.
+    const el = target as HTMLElement;
+    const isCloseBtn = el.closest(".modal-close");
+    const insideContent = !isCloseBtn && el.closest(".modal-content");
+    if (insideContent) return;
+    closeModal();
+  } else if (action === "analyze") {
     void startAnalysis(false);
   } else if (action === "reanalyze") {
     void startAnalysis(true);
