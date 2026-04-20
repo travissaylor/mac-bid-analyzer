@@ -3,4 +3,6 @@
 data.db
 node_modules
 dist
+dist/
+extension/shared/config.generated.ts
 .claude/settings.local.json
