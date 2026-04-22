@@ -24,11 +24,22 @@ import {
   renderAnalyzed,
   renderError,
   renderNoToken,
+  renderChip,
+  renderSideTab,
+  chipLabelFor,
+  BADGE_CHROME_HTML,
 } from "../shared/badge";
 import { renderModal } from "../shared/modal";
 import { resolveDisplayData } from "../shared/display";
 import { fetchCached, postAnalyze } from "../shared/api";
 import { BACKEND_URL, API_TOKEN } from "../shared/config";
+import {
+  getCardDefaultState,
+  setCardDefaultState,
+  subscribeCardDefaultState,
+  DEFAULT_CARD_STATE,
+  type CardDefaultState,
+} from "../shared/preferences";
 import type { LotInfo, AnalyzedItem, FetchFn } from "../shared/types";
 
 // ---------- Module state ----------
@@ -42,6 +53,17 @@ let currentLotInfo: LotInfo | null = null;
 let inFlightAnalysis = false;
 let lastAnalyzedItem: AnalyzedItem | null = null;
 let feedbackInFlight = false;
+
+// Last body rendered into the card so we can re-show it when restoring from
+// chip / side-tab without re-fetching.
+let lastCardVariant = "";
+let lastCardBodyHtml = "";
+
+// Persisted preference (loaded async at startup) and per-session override.
+// effective = sessionState ?? persistedState. sessionState is reset on lot
+// navigation and on persisted-pref change.
+let persistedState: CardDefaultState = DEFAULT_CARD_STATE;
+let sessionState: CardDefaultState | null = null;
 
 // ---------- Shadow-DOM badge host ----------
 
@@ -90,10 +112,24 @@ function ensureBadge(): ShadowRoot {
   style.textContent = BADGE_STYLES + MODAL_STYLES;
   shadow.appendChild(style);
 
+  // Three top-level UI states share this shadow root; only one is visible
+  // at a time. Side-tab uses position:fixed (in CSS) to escape the host's
+  // right:16px offset and anchor flush to the viewport edge.
   const card = document.createElement("div");
   card.id = "card";
   card.className = "card";
   shadow.appendChild(card);
+
+  const chip = document.createElement("div");
+  chip.id = "chip";
+  chip.style.display = "none";
+  shadow.appendChild(chip);
+
+  const sideTab = document.createElement("div");
+  sideTab.id = "side-tab";
+  sideTab.className = "side-tab-host";
+  sideTab.style.display = "none";
+  shadow.appendChild(sideTab);
 
   const modalRoot = document.createElement("div");
   modalRoot.id = "modal-root";
@@ -110,14 +146,68 @@ function removeBadge(): void {
   badgeHost = null;
   badgeShadow = null;
   lastAnalyzedItem = null;
+  lastCardVariant = "";
+  lastCardBodyHtml = "";
+  sessionState = null;
+}
+
+function effectiveState(): CardDefaultState {
+  return sessionState ?? persistedState;
 }
 
 function setCard(variant: string, html: string): void {
+  lastCardVariant = variant;
+  lastCardBodyHtml = html;
+  renderCurrentState();
+}
+
+function renderCurrentState(): void {
   const shadow = ensureBadge();
   const card = shadow.getElementById("card");
-  if (!card) return;
-  card.className = `card ${variant || ""}`.trim();
-  card.innerHTML = html;
+  const chip = shadow.getElementById("chip");
+  const sideTab = shadow.getElementById("side-tab");
+  if (!card || !chip || !sideTab) return;
+
+  const state = effectiveState();
+  if (state === "expanded") {
+    card.style.display = "";
+    chip.style.display = "none";
+    sideTab.style.display = "none";
+    card.className = `card ${lastCardVariant || ""}`.trim();
+    card.innerHTML = BADGE_CHROME_HTML + `<div class="card-body">${lastCardBodyHtml}</div>`;
+    updateOverflowMenuState(card);
+  } else if (state === "minimized") {
+    card.style.display = "none";
+    chip.style.display = "";
+    sideTab.style.display = "none";
+    chip.innerHTML = renderChip(lastCardVariant, chipLabelFor(lastAnalyzedItem));
+  } else {
+    card.style.display = "none";
+    chip.style.display = "none";
+    sideTab.style.display = "";
+    sideTab.innerHTML = renderSideTab(lastCardVariant);
+  }
+}
+
+function updateOverflowMenuState(cardEl: HTMLElement): void {
+  const items = cardEl.querySelectorAll<HTMLElement>(
+    '.overflow-item[data-state]'
+  );
+  items.forEach((item) => {
+    if (item.dataset.state === persistedState) {
+      item.dataset.current = "true";
+    } else {
+      delete item.dataset.current;
+    }
+  });
+}
+
+function toggleOverflowMenu(force?: boolean): void {
+  if (!badgeShadow) return;
+  const menu = badgeShadow.querySelector<HTMLElement>(".overflow-menu");
+  if (!menu) return;
+  const open = force ?? menu.dataset.open !== "true";
+  menu.dataset.open = open ? "true" : "false";
 }
 
 // ---------- BACKEND_FETCH proxy ----------
@@ -230,9 +320,11 @@ function handleLotForBadge(lotInfo: LotInfo): void {
   const prev = currentLotInfo;
   currentLotInfo = lotInfo;
   if (!prev || prev.lotId !== lotInfo.lotId) {
-    // Navigated to a new lot — close any open modal from the prior lot.
+    // Navigated to a new lot — close any open modal and drop session
+    // override so the persisted preference applies fresh.
     closeModal();
     lastAnalyzedItem = null;
+    sessionState = null;
     void checkAndRender(lotInfo);
   }
 }
@@ -337,6 +429,16 @@ function handleShadowClick(event: Event): void {
   // .modal-content dispatch correctly instead of being swallowed by the
   // dismiss handler.
   const actionEl = target.closest("[data-action]") as HTMLElement | null;
+
+  // Close overflow menu on any click that isn't the toggle or a menu item.
+  if (
+    !actionEl ||
+    (actionEl.dataset.action !== "overflow-toggle" &&
+      actionEl.dataset.action !== "set-default")
+  ) {
+    toggleOverflowMenu(false);
+  }
+
   if (!actionEl) return;
   const action = actionEl.dataset.action;
 
@@ -362,6 +464,25 @@ function handleShadowClick(event: Event): void {
     ) as HTMLTextAreaElement | null;
     const value = textarea?.value ?? "";
     void submitFeedback(value);
+  } else if (action === "minimize") {
+    // From the card: collapse to the most-collapsed reasonable state. If
+    // the persisted preference is "hidden", honor that; otherwise chip.
+    sessionState = persistedState === "hidden" ? "hidden" : "minimized";
+    renderCurrentState();
+  } else if (action === "restore") {
+    sessionState = "expanded";
+    renderCurrentState();
+  } else if (action === "overflow-toggle") {
+    toggleOverflowMenu();
+  } else if (action === "set-default") {
+    const next = actionEl.dataset.state as CardDefaultState | undefined;
+    if (next === "expanded" || next === "minimized" || next === "hidden") {
+      persistedState = next;
+      sessionState = null;
+      void setCardDefaultState(next);
+      toggleOverflowMenu(false);
+      renderCurrentState();
+    }
   }
 }
 
@@ -385,6 +506,20 @@ function notifyLotStatus(): void {
     handleNoLotForBadge();
   }
 }
+
+// Load the persisted card-default preference once at startup. Until it
+// resolves, effective state falls back to DEFAULT_CARD_STATE ("expanded").
+void getCardDefaultState().then((state) => {
+  persistedState = state;
+  if (badgeShadow) renderCurrentState();
+});
+
+// React to preference changes from other tabs (chrome.storage.sync).
+subscribeCardDefaultState((state) => {
+  persistedState = state;
+  sessionState = null;
+  if (badgeShadow) renderCurrentState();
+});
 
 // Initial detection on script injection.
 notifyLotStatus();
