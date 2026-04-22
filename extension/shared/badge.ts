@@ -5,11 +5,72 @@
 
 import type { AnalyzedItem } from "./types";
 import { escapeHtml } from "./display";
+import type { CardDefaultState } from "./preferences";
 
 export interface BadgeContent {
   variant: string;
   html: string;
 }
+
+// Static chrome (minimize button + overflow menu) prepended above every card
+// body. The overflow menu's "checked" radio is updated separately via
+// data-state attribute on the menu container.
+export const BADGE_CHROME_HTML = `
+  <div class="card-chrome">
+    <button class="chrome-btn" data-action="minimize" title="Minimize" aria-label="Minimize">&minus;</button>
+    <div class="overflow-wrap">
+      <button class="chrome-btn" data-action="overflow-toggle" title="Default state" aria-label="Default state">&#8943;</button>
+      <div class="overflow-menu" data-open="false" role="menu">
+        <div class="overflow-title">Default state</div>
+        <button class="overflow-item" data-action="set-default" data-state="expanded" role="menuitemradio">
+          <span class="overflow-check">&#10003;</span><span>Expanded</span>
+        </button>
+        <button class="overflow-item" data-action="set-default" data-state="minimized" role="menuitemradio">
+          <span class="overflow-check">&#10003;</span><span>Minimized</span>
+        </button>
+        <button class="overflow-item" data-action="set-default" data-state="hidden" role="menuitemradio">
+          <span class="overflow-check">&#10003;</span><span>Hidden</span>
+        </button>
+      </div>
+    </div>
+  </div>
+`;
+
+export function renderChip(variant: string, label: string): string {
+  const safeLabel = escapeHtml(label);
+  const variantClass = variant ? ` ${variant}` : "";
+  return `
+    <button class="chip-btn${variantClass}" data-action="restore" title="Show analyzer" aria-label="Show analyzer (${safeLabel})">
+      <span class="chip-dot"></span>
+      <span class="chip-label">${safeLabel}</span>
+    </button>
+  `;
+}
+
+export function renderSideTab(variant: string): string {
+  const variantClass = variant ? ` ${variant}` : "";
+  return `
+    <button class="side-tab-btn${variantClass}" data-action="restore" title="Show analyzer" aria-label="Show analyzer">
+      <span class="side-tab-dot"></span>
+      <span class="side-tab-arrow">&#8249;</span>
+    </button>
+  `;
+}
+
+// Short label for the chip given an analyzed item (or null if not analyzed).
+export function chipLabelFor(item: AnalyzedItem | null): string {
+  if (!item) return "MB";
+  const max = item.recommended_max_bid;
+  if (max === null || max === undefined) return "?";
+  const n = Number(max);
+  if (!Number.isFinite(n)) return "?";
+  if (n <= 0) return "—";
+  if (n >= 1000) return `$${Math.round(n / 100) / 10}k`;
+  return `$${Math.round(n)}`;
+}
+
+// Re-export so callers can use a single import for state types.
+export type { CardDefaultState };
 
 export function renderChecking(): BadgeContent {
   return {

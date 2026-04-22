@@ -19,7 +19,145 @@ export const BADGE_STYLES = `
     padding: 10px 12px;
     min-width: 210px;
     max-width: 280px;
+    position: relative;
   }
+  .card.slide-in { animation: mba-slide-in 180ms ease-out; }
+  @keyframes mba-slide-in {
+    from { transform: translateX(16px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Card chrome (minimize + overflow menu) */
+  .card-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    margin: -6px -6px 4px -6px;
+  }
+  .chrome-btn {
+    background: transparent;
+    color: #888;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chrome-btn:hover { background: #f0f0f0; color: #222; }
+  .overflow-wrap { position: relative; }
+  .overflow-menu {
+    display: none;
+    position: absolute;
+    top: 26px;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    padding: 6px 0;
+    min-width: 150px;
+  }
+  .overflow-menu[data-open="true"] { display: block; }
+  .overflow-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    padding: 4px 12px 6px;
+  }
+  .overflow-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: transparent;
+    color: #222;
+    text-align: left;
+    padding: 6px 12px;
+    border-radius: 0;
+    font-size: 13px;
+  }
+  .overflow-item:hover { background: #f5f5f5; }
+  .overflow-check { color: #1976D2; visibility: hidden; width: 12px; display: inline-block; }
+  .overflow-item[data-current="true"] .overflow-check { visibility: visible; }
+
+
+  /* Minimized chip */
+  .chip-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    color: #222;
+    border: 1px solid #e0e0e0;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    padding: 6px 12px 6px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    animation: mba-slide-in 180ms ease-out;
+  }
+  .chip-btn:hover { background: #fafafa; }
+  .chip-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #bdbdbd;
+    flex-shrink: 0;
+  }
+  .chip-btn.good-deal { border-color: #4CAF50; color: #2E7D32; }
+  .chip-btn.good-deal .chip-dot { background: #4CAF50; }
+  .chip-btn.over-max { border-color: #F44336; color: #C62828; }
+  .chip-btn.over-max .chip-dot { background: #F44336; }
+  .chip-btn.error { border-color: #ff9800; color: #b26a00; }
+  .chip-btn.error .chip-dot { background: #ff9800; }
+  .chip-label { line-height: 1; }
+
+  /* Hidden-state side tab — uses fixed positioning to escape the host's
+     right:16px offset and anchor flush to the viewport's right edge. */
+  .side-tab-host {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .side-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #fff;
+    color: #666;
+    border: 1px solid #e0e0e0;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    box-shadow: -4px 4px 14px rgba(0, 0, 0, 0.12);
+    padding: 10px 6px;
+    width: 24px;
+    min-height: 56px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    animation: mba-slide-in 180ms ease-out;
+  }
+  .side-tab-btn:hover { background: #fafafa; color: #222; padding-right: 8px; }
+  .side-tab-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #bdbdbd;
+  }
+  .side-tab-arrow { font-size: 16px; line-height: 1; color: inherit; }
+  .side-tab-btn.good-deal .side-tab-dot { background: #4CAF50; }
+  .side-tab-btn.over-max .side-tab-dot { background: #F44336; }
+  .side-tab-btn.error .side-tab-dot { background: #ff9800; }
   .card.good-deal { border-color: #4CAF50; background: #f3faf4; }
   .card.over-max { border-color: #F44336; background: #fdf4f4; }
   .card.error { border-color: #ff9800; background: #fff8e1; }
