@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "mac.bid Analyzer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Analyze mac.bid lots directly in your browser",
   "browser_specific_settings": {
     "safari": {

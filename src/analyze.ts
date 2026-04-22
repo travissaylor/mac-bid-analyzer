@@ -95,7 +95,8 @@ export async function resolveLotId(input: string | number): Promise<ResolvedLot>
   }
 
   const data = JSON.parse(match[1]);
-  const currentLot = data?.props?.pageProps?.currentLot;
+  const pageProps = data?.props?.pageProps;
+  const currentLot = pageProps?.activeLot ?? pageProps?.currentLot;
   const lotId = currentLot?.id;
   if (typeof lotId !== "number") {
     throw new Error("Could not extract lot ID from page data");

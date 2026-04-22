@@ -32,20 +32,18 @@ export function extractLotInfo(url: string): LotInfo | null {
     };
   }
 
-  // /search?aid={auctionId}&lid={lotId} (preview panel)
   const parsed = new URL(url);
-  if (parsed.pathname === "/search") {
+  const lid = parsed.searchParams.get("lid");
+  if (lid) {
     const aid = parsed.searchParams.get("aid");
-    const lid = parsed.searchParams.get("lid");
-    if (aid && lid) {
-      return {
-        type: "auction_lot",
-        auctionId: aid,
-        lotNumber: lid,
-        lotId: lid,
-        path: `/auction/${aid}/lot/${lid}`,
-      };
-    }
+    const path = aid ? `/auction/${aid}/lot/${lid}` : `/lot/${lid}`;
+    return {
+      type: "auction_lot",
+      auctionId: aid ?? undefined,
+      lotNumber: lid,
+      lotId: lid,
+      path,
+    };
   }
 
   return null;
