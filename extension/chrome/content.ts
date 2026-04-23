@@ -30,7 +30,7 @@ import {
   BADGE_CHROME_HTML,
 } from "../shared/badge";
 import { renderModal } from "../shared/modal";
-import { resolveDisplayData } from "../shared/display";
+import { resolveDisplayData, renderMaxBidMathSteps } from "../shared/display";
 import { fetchCached, postAnalyze } from "../shared/api";
 import { BACKEND_URL, API_TOKEN } from "../shared/config";
 import {
@@ -137,6 +137,7 @@ function ensureBadge(): ShadowRoot {
   shadow.appendChild(modalRoot);
 
   shadow.addEventListener("click", handleShadowClick);
+  shadow.addEventListener("input", handleShadowInput);
   badgeShadow = shadow;
   return shadow;
 }
@@ -483,6 +484,96 @@ function handleShadowClick(event: Event): void {
       toggleOverflowMenu(false);
       renderCurrentState();
     }
+  } else if (action === "margin-reset") {
+    resetMarginOverride();
+  }
+}
+
+// ---------- Margin override (what-if calculator) ----------
+
+type MarginParse =
+  | { kind: "empty" }
+  | { kind: "valid"; value: number }
+  | { kind: "invalid"; message: string };
+
+function parseMarginInput(raw: string): MarginParse {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { kind: "empty" };
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) {
+    return { kind: "invalid", message: "Enter a number between 1 and 100." };
+  }
+  if (value <= 0) {
+    return { kind: "invalid", message: "Must be greater than 0." };
+  }
+  if (value > 100) {
+    return { kind: "invalid", message: "Must be 100 or less." };
+  }
+  return { kind: "valid", value };
+}
+
+function setMarginError(input: HTMLInputElement, message: string | null): void {
+  if (!badgeShadow) return;
+  const errEl = badgeShadow.getElementById("margin-error") as HTMLElement | null;
+  if (message === null) {
+    input.classList.remove("invalid");
+    input.removeAttribute("aria-invalid");
+    if (errEl) {
+      errEl.textContent = "";
+      errEl.hidden = true;
+    }
+  } else {
+    input.classList.add("invalid");
+    input.setAttribute("aria-invalid", "true");
+    if (errEl) {
+      errEl.textContent = message;
+      errEl.hidden = false;
+    }
+  }
+}
+
+function updateMathSteps(overridePct: number | undefined): void {
+  if (!badgeShadow || !lastAnalyzedItem) return;
+  const stepsEl = badgeShadow.getElementById("max-bid-math-steps");
+  if (!stepsEl) return;
+  const data = resolveDisplayData(lastAnalyzedItem);
+  stepsEl.innerHTML = renderMaxBidMathSteps(data, overridePct);
+}
+
+function resetMarginOverride(): void {
+  if (!badgeShadow) return;
+  const input = badgeShadow.getElementById(
+    "margin-override-input"
+  ) as HTMLInputElement | null;
+  if (input) {
+    const def = input.dataset.default;
+    if (def !== undefined) input.value = def;
+    setMarginError(input, null);
+  }
+  updateMathSteps(undefined);
+}
+
+function handleShadowInput(event: Event): void {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  const actionEl = target.closest("[data-action]") as HTMLElement | null;
+  if (!actionEl) return;
+  if (actionEl.dataset.action !== "margin-override") return;
+
+  const input = actionEl as HTMLInputElement;
+  const parsed = parseMarginInput(input.value);
+  if (parsed.kind === "valid") {
+    setMarginError(input, null);
+    updateMathSteps(parsed.value);
+  } else if (parsed.kind === "empty") {
+    // Empty input isn't an error — the user is mid-edit. Show the default
+    // math but don't call out a problem.
+    setMarginError(input, null);
+    updateMathSteps(undefined);
+  } else {
+    // Invalid: flag the input but leave the last good math visible so the
+    // user has something to compare against while they correct.
+    setMarginError(input, parsed.message);
   }
 }
 

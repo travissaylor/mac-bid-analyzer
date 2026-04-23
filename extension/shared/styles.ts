@@ -433,6 +433,108 @@ export const MODAL_STYLES = `
     text-align: right;
     margin-top: 8px;
   }
+  .math-step {
+    padding: 6px 0;
+    border-bottom: 1px dashed #eee;
+  }
+  .math-step:first-child {
+    padding-top: 0;
+  }
+  .math-step:last-of-type {
+    border-bottom: none;
+  }
+  .math-note {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+  .math-result {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e0e0e0;
+    font-weight: 600;
+  }
+  .math-result .value {
+    color: #1976D2;
+  }
+  .math-original {
+    color: #888;
+    font-weight: 400;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .margin-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed #eee;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .margin-control label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 600;
+  }
+  .margin-control input[type="number"] {
+    width: 60px;
+    padding: 4px 6px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: right;
+    -moz-appearance: textfield;
+  }
+  .margin-control input[type="number"]::-webkit-outer-spin-button,
+  .margin-control input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .margin-control input[type="number"]:focus {
+    outline: none;
+    border-color: #1976D2;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
+  }
+  .margin-control input[type="number"].invalid {
+    border-color: #d32f2f;
+    background-color: #fff5f5;
+  }
+  .margin-control input[type="number"].invalid:focus {
+    border-color: #d32f2f;
+    box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.18);
+  }
+  .margin-error {
+    font-size: 11px;
+    color: #d32f2f;
+    margin-top: -2px;
+    margin-bottom: 4px;
+  }
+  .margin-error[hidden] {
+    display: none;
+  }
+  .margin-suffix {
+    font-size: 12px;
+    color: #666;
+  }
+  .margin-reset {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid #ccc;
+    color: #666;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .margin-reset:hover {
+    background: #f5f5f5;
+    color: #222;
+  }
+  .margin-help {
+    margin-bottom: 8px;
+  }
   #feedback-section {
     margin-top: 12px;
     margin-bottom: 12px;

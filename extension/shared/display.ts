@@ -9,6 +9,7 @@ import type {
   DisplayData,
   EbayDisplay,
   ImageFlag,
+  MaxBidBreakdown,
   MaxBidDisplay,
 } from "./types";
 
@@ -85,6 +86,68 @@ export function parseComparables(
 }
 
 /**
+ * Reproduce the max-bid math from `calculateMaxBid()` in `src/analyze.ts` so
+ * the modal can show the user every step that produced the recommendation.
+ *
+ * Returns null when:
+ *  - no recommendation was made (e.g. manual review, no comps)
+ *  - the analysis predates the migration that persists the formula inputs
+ *    (`discount_threshold`, `lot_fee`, `buyers_premium_rate`)
+ *  - the source estimate isn't available on the row (defensive)
+ */
+function buildMaxBidBreakdown(
+  item: AnalyzedItem,
+  ebay: EbayDisplay | null,
+  ai: AiDisplay | null
+): MaxBidBreakdown | null {
+  if (
+    item.recommended_max_bid === null ||
+    item.discount_threshold === null ||
+    item.lot_fee === null ||
+    item.buyers_premium_rate === null
+  ) {
+    return null;
+  }
+
+  let baseSource: "ebay" | "ai";
+  let baseEstimate: number;
+  if (item.analysis_source === "ai" && ai && ai.mid !== null) {
+    baseSource = "ai";
+    baseEstimate = ai.mid;
+  } else if (item.analysis_source === "ebay" && ebay && ebay.median !== null) {
+    baseSource = "ebay";
+    baseEstimate = ebay.median;
+  } else {
+    return null;
+  }
+
+  const discountThreshold = item.discount_threshold;
+  const lotFee = item.lot_fee;
+  const buyersPremiumRate = item.buyers_premium_rate;
+  const salesTaxRate = item.sales_tax_rate ?? 0;
+  const locationCost = item.location_cost;
+
+  const targetAllIn = baseEstimate * (1 - discountThreshold);
+  const afterFees = targetAllIn - lotFee - locationCost;
+  const divisor = 1 + buyersPremiumRate + salesTaxRate;
+  const result = afterFees / divisor;
+
+  return {
+    baseSource,
+    baseEstimate,
+    discountThreshold,
+    targetAllIn,
+    lotFee,
+    locationCost,
+    afterFees,
+    buyersPremiumRate,
+    salesTaxRate,
+    divisor,
+    result,
+  };
+}
+
+/**
  * Transform a raw `AnalyzedItem` from the API into display-friendly data.
  * Lifted from the original `sidepanel.js` (resolveDisplayData), which itself
  * mirrors `resolveDisplayData()` in `src/format.ts`.
@@ -123,6 +186,8 @@ export function resolveDisplayData(item: AnalyzedItem): DisplayData {
     maxBid = { type: "value", amount: item.recommended_max_bid };
   }
 
+  const maxBidBreakdown = buildMaxBidBreakdown(item, ebay, ai);
+
   const hasPositiveMax =
     item.recommended_max_bid !== null && item.recommended_max_bid > 0;
   const isDeal =
@@ -156,6 +221,7 @@ export function resolveDisplayData(item: AnalyzedItem): DisplayData {
     ebay,
     ai,
     maxBid,
+    maxBidBreakdown,
     dealScore,
     salesTaxRate: item.sales_tax_rate,
     manualReview,
@@ -346,42 +412,207 @@ export function renderResults(data: DisplayData): string {
     html.push(`</div></div>`);
   }
 
-  // Cost breakdown section
-  html.push(`<div class="section">`);
-  html.push(`<div class="section-title">Cost Breakdown</div>`);
-  html.push(`<div class="section-body">`);
-  if (data.analysisSource === "ebay" && data.ebay) {
-    html.push(
-      `<div class="row"><span class="label">Base Estimate (eBay)</span><span class="value">${formatCurrency(
-        data.ebay.median
-      )}</span></div>`
-    );
-  } else if (data.analysisSource === "ai" && data.ai) {
-    html.push(
-      `<div class="row"><span class="label">Base Estimate (AI)</span><span class="value">${formatCurrency(
-        data.ai.mid
-      )}</span></div>`
-    );
-  }
-  if (data.salesTaxRate !== null && data.salesTaxRate !== undefined) {
-    html.push(
-      `<div class="row"><span class="label">Sales Tax Rate</span><span class="value">${(
-        data.salesTaxRate * 100
-      ).toFixed(1)}%</span></div>`
-    );
-  }
-  html.push(
-    `<div class="row"><span class="label">Location Cost</span><span class="value">${formatCurrency(
-      data.locationCost
-    )}</span></div>`
-  );
-  html.push(`</div></div>`);
+  // Max bid math breakdown
+  html.push(renderMaxBidMath(data));
 
   // Source footer
   html.push(
     `<div class="source-footer">Analysis source: ${escapeHtml(
       data.analysisSource
     )}</div>`
+  );
+
+  return html.join("");
+}
+
+function formatPercent(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+function formatSigned(amount: number): string {
+  const sign = amount < 0 ? "-" : "+";
+  return `${sign}$${Math.abs(amount).toFixed(2)}`;
+}
+
+/**
+ * Recompute a breakdown with a different `discountThreshold`. Used by the
+ * interactive "what-if" margin slider in the modal — same inputs, just a new
+ * target margin. Keeps `baseEstimate`, fees, and rates intact.
+ */
+function recomputeBreakdown(
+  b: MaxBidBreakdown,
+  discountThreshold: number
+): MaxBidBreakdown {
+  const targetAllIn = b.baseEstimate * (1 - discountThreshold);
+  const afterFees = targetAllIn - b.lotFee - b.locationCost;
+  const result = afterFees / b.divisor;
+  return { ...b, discountThreshold, targetAllIn, afterFees, result };
+}
+
+/**
+ * The "% of comp price" that the user is willing to pay all-in. Inverse of
+ * `discountThreshold` (e.g. threshold 0.30 → margin 70%). Shown in the
+ * slider input because users think in "what fraction am I paying" terms.
+ */
+function thresholdToMarginPct(discountThreshold: number): number {
+  return Math.round((1 - discountThreshold) * 1000) / 10;
+}
+
+/**
+ * Render the entire "Max Bid Math" section: the editable target-margin
+ * control plus the steps. The steps live in their own `#max-bid-math-steps`
+ * container so the entry point can re-render them on input without touching
+ * the input element (and thus without losing focus).
+ *
+ * For older rows that don't carry the formula inputs, falls back to a static
+ * partial breakdown.
+ */
+function renderMaxBidMath(data: DisplayData): string {
+  const html: string[] = [];
+  html.push(`<div class="section" id="max-bid-math">`);
+  html.push(`<div class="section-title">Max Bid Math</div>`);
+  html.push(`<div class="section-body">`);
+
+  const b = data.maxBidBreakdown;
+  if (b) {
+    const marginPct = thresholdToMarginPct(b.discountThreshold);
+    html.push(
+      `<div class="margin-control">` +
+        `<label for="margin-override-input">Target margin</label>` +
+        `<input type="number" id="margin-override-input" data-action="margin-override" ` +
+        `min="1" max="100" step="1" value="${marginPct}" ` +
+        `data-default="${marginPct}" />` +
+        `<span class="margin-suffix">% of comp price</span>` +
+        `<button type="button" class="margin-reset" data-action="margin-reset" title="Reset to default">Reset</button>` +
+        `</div>` +
+        `<div id="margin-error" class="margin-error" hidden></div>` +
+        `<div class="math-note margin-help">Lower = bid less, more profit margin for you. Higher = bid more, willing to accept a smaller margin.</div>`
+    );
+    html.push(`<div id="max-bid-math-steps">${renderMaxBidMathSteps(data)}</div>`);
+  } else {
+    if (data.analysisSource === "ebay" && data.ebay) {
+      html.push(
+        `<div class="row"><span class="label">Base Estimate (eBay)</span><span class="value">${formatCurrency(
+          data.ebay.median
+        )}</span></div>`
+      );
+    } else if (data.analysisSource === "ai" && data.ai) {
+      html.push(
+        `<div class="row"><span class="label">Base Estimate (AI)</span><span class="value">${formatCurrency(
+          data.ai.mid
+        )}</span></div>`
+      );
+    }
+    if (data.salesTaxRate !== null && data.salesTaxRate !== undefined) {
+      html.push(
+        `<div class="row"><span class="label">Sales Tax Rate</span><span class="value">${formatPercent(
+          data.salesTaxRate
+        )}</span></div>`
+      );
+    }
+    html.push(
+      `<div class="row"><span class="label">Location Cost</span><span class="value">${formatCurrency(
+        data.locationCost
+      )}</span></div>`
+    );
+    html.push(
+      `<div class="math-note" style="margin-top:6px;">Formula inputs weren't recorded for this analysis — re-analyze to see the full step-by-step breakdown.</div>`
+    );
+  }
+
+  html.push(`</div></div>`);
+  return html.join("");
+}
+
+/**
+ * Render only the inner steps of the max-bid math (everything inside
+ * `#max-bid-math-steps`). Exported so the content script can hot-swap the
+ * steps when the user adjusts the target-margin input — the input element
+ * itself is rendered by `renderMaxBidMath` and stays untouched, preserving
+ * focus + cursor position across keystrokes.
+ *
+ * `marginOverridePct` is the user-entered "% of comp price" (e.g. 70). When
+ * provided and within (0, 100), the steps reflect the override; the original
+ * recommended max bid is shown alongside for comparison.
+ */
+export function renderMaxBidMathSteps(
+  data: DisplayData,
+  marginOverridePct?: number
+): string {
+  const original = data.maxBidBreakdown;
+  if (!original) return "";
+
+  let breakdown = original;
+  let isOverride = false;
+  if (
+    typeof marginOverridePct === "number" &&
+    Number.isFinite(marginOverridePct) &&
+    marginOverridePct > 0 &&
+    marginOverridePct <= 100
+  ) {
+    const newThreshold = (100 - marginOverridePct) / 100;
+    if (Math.abs(newThreshold - original.discountThreshold) > 1e-6) {
+      breakdown = recomputeBreakdown(original, newThreshold);
+      isOverride = true;
+    }
+  }
+
+  const html: string[] = [];
+  const b = breakdown;
+  const baseLabel = b.baseSource === "ai" ? "AI mid estimate" : "eBay median";
+
+  html.push(
+    `<div class="math-step">` +
+      `<div class="row"><span class="label">Base estimate (${escapeHtml(
+        baseLabel
+      )})</span><span class="value">${formatCurrency(b.baseEstimate)}</span></div>` +
+      `<div class="math-note">Starting point for the recommendation.</div>` +
+      `</div>`
+  );
+
+  const marginPct = formatPercent(1 - b.discountThreshold);
+  html.push(
+    `<div class="math-step">` +
+      `<div class="row"><span class="label">&times; Target margin (${marginPct} of estimate)</span>` +
+      `<span class="value">${formatCurrency(b.targetAllIn)}</span></div>` +
+      `<div class="math-note">Discount of ${formatPercent(
+        b.discountThreshold
+      )} below comp price — the all-in budget we're willing to spend.</div>` +
+      `</div>`
+  );
+
+  html.push(
+    `<div class="math-step">` +
+      `<div class="row"><span class="label">${escapeHtml(
+        formatSigned(-b.lotFee)
+      )} lot fee</span><span class="value"></span></div>` +
+      `<div class="row"><span class="label">${escapeHtml(
+        formatSigned(-b.locationCost)
+      )} location cost</span><span class="value">${formatCurrency(b.afterFees)}</span></div>` +
+      `<div class="math-note">Flat costs paid on top of the bid — subtracted from the budget.</div>` +
+      `</div>`
+  );
+
+  html.push(
+    `<div class="math-step">` +
+      `<div class="row"><span class="label">&divide; (1 + ${formatPercent(
+        b.buyersPremiumRate
+      )} buyer's premium + ${formatPercent(
+        b.salesTaxRate
+      )} sales tax) = &divide; ${b.divisor.toFixed(3)}</span>` +
+      `<span class="value">${formatCurrency(b.result)}</span></div>` +
+      `<div class="math-note">Percentage costs scale with the bid, so we divide to back out the bid that produces the target all-in.</div>` +
+      `</div>`
+  );
+
+  const resultLabel = isOverride
+    ? `Adjusted max bid <span class="math-original">(default ${formatCurrency(
+        original.result
+      )})</span>`
+    : "Recommended max bid";
+  html.push(
+    `<div class="math-result row"><span class="label">${resultLabel}</span>` +
+      `<span class="value">${formatCurrency(b.result)}</span></div>`
   );
 
   return html.join("");
