@@ -37,6 +37,9 @@ export interface AnalyzedItem {
   sales_tax_rate: number | null;
   location_cost: number;
   location_tier: string | null;
+  discount_threshold: number | null;
+  lot_fee: number | null;
+  buyers_premium_rate: number | null;
   deal_score: number | null;
   image_flags: string | null;
   image_risk_score: number | null;
@@ -89,6 +92,9 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
   sales_tax_rate    REAL,
   location_cost     REAL DEFAULT 0,
   location_tier     TEXT,
+  discount_threshold REAL,
+  lot_fee           REAL,
+  buyers_premium_rate REAL,
   deal_score        REAL,
   image_flags       TEXT,
   image_risk_score  REAL,
@@ -120,6 +126,9 @@ function migrateSchema(db: Database): void {
     ["image_risk_score", "ALTER TABLE analyzed_items ADD COLUMN image_risk_score REAL"],
     ["image_analysis_skipped", "ALTER TABLE analyzed_items ADD COLUMN image_analysis_skipped INTEGER"],
     ["user_feedback", "ALTER TABLE analyzed_items ADD COLUMN user_feedback TEXT"],
+    ["discount_threshold", "ALTER TABLE analyzed_items ADD COLUMN discount_threshold REAL"],
+    ["lot_fee", "ALTER TABLE analyzed_items ADD COLUMN lot_fee REAL"],
+    ["buyers_premium_rate", "ALTER TABLE analyzed_items ADD COLUMN buyers_premium_rate REAL"],
   ];
 
   for (const [col, sql] of migrations) {
@@ -149,6 +158,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       llm_estimate_low, llm_estimate_mid, llm_estimate_high, llm_provider,
       llm_confidence, llm_reasoning, llm_comparables,
       recommended_max_bid, sales_tax_rate, location_cost, location_tier,
+      discount_threshold, lot_fee, buyers_premium_rate,
       deal_score, image_flags, image_risk_score, image_analysis_skipped,
       needs_manual_review, manual_review_reason,
       analyzed_at, analysis_source, user_feedback
@@ -161,6 +171,7 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       $llm_estimate_low, $llm_estimate_mid, $llm_estimate_high, $llm_provider,
       $llm_confidence, $llm_reasoning, $llm_comparables,
       $recommended_max_bid, $sales_tax_rate, $location_cost, $location_tier,
+      $discount_threshold, $lot_fee, $buyers_premium_rate,
       $deal_score, $image_flags, $image_risk_score, $image_analysis_skipped,
       $needs_manual_review, $manual_review_reason,
       $analyzed_at, $analysis_source, $user_feedback
@@ -199,6 +210,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
       sales_tax_rate = excluded.sales_tax_rate,
       location_cost = excluded.location_cost,
       location_tier = excluded.location_tier,
+      discount_threshold = excluded.discount_threshold,
+      lot_fee = excluded.lot_fee,
+      buyers_premium_rate = excluded.buyers_premium_rate,
       deal_score = excluded.deal_score,
       image_flags = excluded.image_flags,
       image_risk_score = excluded.image_risk_score,
@@ -246,6 +260,9 @@ export function upsertAnalyzedItem(db: Database, item: AnalyzedItem): void {
     $sales_tax_rate: item.sales_tax_rate,
     $location_cost: item.location_cost,
     $location_tier: item.location_tier,
+    $discount_threshold: item.discount_threshold,
+    $lot_fee: item.lot_fee,
+    $buyers_premium_rate: item.buyers_premium_rate,
     $deal_score: item.deal_score,
     $image_flags: item.image_flags,
     $image_risk_score: item.image_risk_score,

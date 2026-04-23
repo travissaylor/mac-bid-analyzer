@@ -57,6 +57,9 @@ export interface AnalyzedItem {
   sales_tax_rate: number | null;
   location_cost: number;
   location_tier: string | null;
+  discount_threshold: number | null;
+  lot_fee: number | null;
+  buyers_premium_rate: number | null;
   deal_score: number | null;
   image_flags: string | null;
   image_risk_score: number | null;
@@ -84,6 +87,30 @@ export type MaxBidDisplay =
   | { type: "unavailable" }
   | { type: "not_worth_it"; amount: number }
   | { type: "value"; amount: number };
+
+/**
+ * Step-by-step inputs for the formula:
+ *   targetAllIn = baseEstimate * (1 - discountThreshold)
+ *   maxBid      = (targetAllIn - lotFee - locationCost)
+ *                 / (1 + buyersPremiumRate + salesTaxRate)
+ *
+ * `baseSource` indicates which estimate fed the formula (eBay median or AI mid).
+ * `targetAllIn`, `afterFees`, `divisor`, and `result` are pre-computed so the
+ * renderer can show each line without re-implementing the math.
+ */
+export interface MaxBidBreakdown {
+  baseSource: "ebay" | "ai";
+  baseEstimate: number;
+  discountThreshold: number;
+  targetAllIn: number;
+  lotFee: number;
+  locationCost: number;
+  afterFees: number;
+  buyersPremiumRate: number;
+  salesTaxRate: number;
+  divisor: number;
+  result: number;
+}
 
 export interface EbayDisplay {
   median: number | null;
@@ -120,6 +147,7 @@ export interface DisplayData {
   ebay: EbayDisplay | null;
   ai: AiDisplay | null;
   maxBid: MaxBidDisplay;
+  maxBidBreakdown: MaxBidBreakdown | null;
   dealScore: number | null;
   salesTaxRate: number | null;
   manualReview: { reason: string } | null;
