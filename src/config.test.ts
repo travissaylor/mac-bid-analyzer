@@ -90,10 +90,10 @@ describe("loadConfig", () => {
     rmSync(dir, { recursive: true });
   });
 
-  test("defaults llm_model to openai/gpt-4o-mini", () => {
+  test("defaults llm_model to gemini/gemini-3.1-flash-lite-preview", () => {
     const dir = makeTempDir();
     const config = loadConfig([], dir);
-    expect(config.llm_model).toBe("openai/gpt-4o-mini");
+    expect(config.llm_model).toBe("gemini/gemini-3.1-flash-lite-preview");
     rmSync(dir, { recursive: true });
   });
 
