@@ -8,8 +8,6 @@ import { syncLiveData } from "./sync";
 import { startTelegramBot } from "./telegram";
 import { startServer } from "./server";
 import { toTextSummary, toTextDetail, resolveDisplayData, plainText } from "./format";
-import { exportFixtures } from "./eval/export";
-import { runEval, saveReport, printSummaryTable, printSearchMetrics } from "./eval/runner";
 
 function timestamp(): string {
   return `[${new Date().toISOString()}]`;
@@ -30,7 +28,6 @@ function printUsage(): void {
   console.log("  detail <lotId>       Show full AI analysis for a specific item");
   console.log("  telegram             Start the Telegram bot in long-polling mode");
   console.log("  server               Start the HTTP API server");
-  console.log("  eval export          Export analyzed items as JSONL fixture file for evals");
   console.log("");
   console.log("Global options:");
   console.log("  --help               Show help for a subcommand");
@@ -69,21 +66,6 @@ function printDetailHelp(): void {
   console.log("and eBay data side-by-side.");
 }
 
-function printEvalHelp(): void {
-  console.log(`${timestamp()} Usage: bun run src/cli.ts eval <subcommand> [options]`);
-  console.log("");
-  console.log("Eval subcommands:");
-  console.log("  export               Export analyzed items as JSONL fixture file");
-  console.log("  run                  Run eval across multiple models");
-  console.log("");
-  console.log("Export options:");
-  console.log("  --output <path>      Output file path (default: evals/fixtures.jsonl)");
-  console.log("");
-  console.log("Run options:");
-  console.log("  --fixtures <path>    Fixture file path (default: evals/fixtures.jsonl)");
-  console.log("  --models <m1,m2>     Comma-separated models in provider/model format");
-}
-
 function printResultsHelp(): void {
   console.log(`${timestamp()} Usage: bun run src/cli.ts results [options]`);
   console.log("");
@@ -96,9 +78,8 @@ function printResultsHelp(): void {
 }
 
 export interface ParsedCommand {
-  subcommand: "analyze" | "results" | "detail" | "telegram" | "server" | "eval" | "help";
+  subcommand: "analyze" | "results" | "detail" | "telegram" | "server" | "help";
   input?: string;
-  evalSubcommand?: "export" | "run";
   flags: {
     help: boolean;
     force: boolean;
@@ -107,9 +88,6 @@ export interface ParsedCommand {
     open: boolean;
     deals: boolean;
     review: boolean;
-    output?: string;
-    fixtures?: string;
-    models?: string;
     /**
      * Three-state semantics:
      *   undefined — flag not provided (preserve existing persisted feedback)
@@ -134,9 +112,6 @@ export function parseArgs(args: string[]): ParsedCommand {
     open: false,
     deals: false,
     review: false,
-    output: undefined as string | undefined,
-    fixtures: undefined as string | undefined,
-    models: undefined as string | undefined,
     userFeedback: undefined as string | null | undefined,
     feedbackProvided: false,
   };
@@ -168,27 +143,6 @@ export function parseArgs(args: string[]): ParsedCommand {
       flags.deals = true;
     } else if (arg === "--review") {
       flags.review = true;
-    } else if (arg === "--output") {
-      const next = args[i + 1];
-      if (next === undefined || next.startsWith("--")) {
-        throw new Error("--output requires a file path");
-      }
-      flags.output = next;
-      i++;
-    } else if (arg === "--fixtures") {
-      const next = args[i + 1];
-      if (next === undefined || next.startsWith("--")) {
-        throw new Error("--fixtures requires a file path");
-      }
-      flags.fixtures = next;
-      i++;
-    } else if (arg === "--models") {
-      const next = args[i + 1];
-      if (next === undefined || next.startsWith("--")) {
-        throw new Error("--models requires a comma-separated list of models");
-      }
-      flags.models = next;
-      i++;
     } else if (arg === "--model") {
       // Consumed by parseCliOverrides in config.ts, skip the value
       i++;
@@ -217,20 +171,8 @@ export function parseArgs(args: string[]): ParsedCommand {
     return { subcommand: "help", flags };
   }
 
-  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram" && subcommand !== "server" && subcommand !== "eval") {
+  if (subcommand !== "analyze" && subcommand !== "results" && subcommand !== "detail" && subcommand !== "telegram" && subcommand !== "server") {
     throw new Error(`Unknown subcommand: ${subcommand}. Run with --help for usage.`);
-  }
-
-  if (subcommand === "eval") {
-    const evalSub = positional[1];
-    if (evalSub && evalSub !== "export" && evalSub !== "run") {
-      throw new Error(`Unknown eval subcommand: ${evalSub}. Expected 'export' or 'run'.`);
-    }
-    return {
-      subcommand: "eval",
-      evalSubcommand: (evalSub as "export" | "run" | undefined),
-      flags,
-    };
   }
 
   const input = (subcommand === "analyze" || subcommand === "detail") ? positional[1] : undefined;
@@ -341,8 +283,6 @@ async function main(): Promise<void> {
       printResultsHelp();
     } else if (parsed.subcommand === "detail") {
       printDetailHelp();
-    } else if (parsed.subcommand === "eval") {
-      printEvalHelp();
     } else {
       printUsage();
     }
@@ -389,62 +329,6 @@ async function main(): Promise<void> {
   if (parsed.subcommand === "server") {
     startServer();
     return; // server runs until killed
-  }
-
-  if (parsed.subcommand === "eval") {
-    if (parsed.evalSubcommand === "export") {
-      try {
-        const outputPath = parsed.flags.output ?? "evals/fixtures.jsonl";
-        await exportFixtures(outputPath);
-        process.exit(0);
-      } catch (err) {
-        log(`Error: ${(err as Error).message}`);
-        process.exit(1);
-      }
-    } else if (parsed.evalSubcommand === "run") {
-      try {
-        const fixturePath = parsed.flags.fixtures ?? "evals/fixtures.jsonl";
-        if (!parsed.flags.models) {
-          log("Error: --models is required (e.g. --models gemini/gemini-2.5-flash,openai/gpt-4o-mini)");
-          process.exit(1);
-        }
-        const modelsList = parsed.flags.models.split(",").map((m) => m.trim()).filter(Boolean);
-        if (modelsList.length === 0) {
-          log("Error: --models requires at least one model");
-          process.exit(1);
-        }
-
-        // Validate model strings before loading config
-        for (const m of modelsList) {
-          if (!m.includes("/")) {
-            log(`Error: Invalid model string "${m}" — expected "provider/model-name" format`);
-            process.exit(1);
-          }
-        }
-
-        const config = loadConfig(args);
-        const report = await runEval({
-          fixturePath,
-          models: modelsList,
-          env: config.env,
-        });
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const outputPath = `evals/results/${timestamp}.json`;
-        await saveReport(report, outputPath);
-        log(`Report saved to ${outputPath}`);
-
-        printSearchMetrics(report);
-        printSummaryTable(report);
-        process.exit(0);
-      } catch (err) {
-        log(`Error: ${(err as Error).message}`);
-        process.exit(1);
-      }
-    } else {
-      log("Usage: bun run src/cli.ts eval <export|run>");
-      process.exit(1);
-    }
   }
 
   if (parsed.subcommand === "results") {

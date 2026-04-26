@@ -18,8 +18,6 @@ CLI commands behind a single entrypoint:
 
 4. **`mac-bid telegram`** — Start the Telegram bot for interactive analysis and live auction monitoring.
 
-5. **`mac-bid eval export`** / **`mac-bid eval run`** — Export fixtures and run LLM model evaluations.
-
 ## Core Workflow
 
 ```
@@ -85,10 +83,6 @@ mac-bid-analyzer/
 │   │   ├── image-prompt.ts   # Image analysis prompt and risk scoring
 │   │   ├── search-query.ts   # eBay search query generation via LLM
 │   │   └── fetch-image.ts    # Image URL → base64 fetcher
-│   └── eval/
-│       ├── export.ts         # Export analyzed items as JSONL fixtures
-│       ├── fixtures.ts       # Load fixture files for evaluation
-│       └── runner.ts         # Run eval across multiple models
 ├── docs/
 │   ├── PROJECT.md            # This file
 │   ├── MACBID-API.md         # Mac.bid API reference

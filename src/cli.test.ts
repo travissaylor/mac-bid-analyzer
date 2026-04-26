@@ -177,33 +177,6 @@ describe("parseArgs", () => {
     expect(result.subcommand).toBe("server");
   });
 
-  test("eval export subcommand", () => {
-    const result = parseArgs(["eval", "export"]);
-    expect(result.subcommand).toBe("eval");
-    expect(result.evalSubcommand).toBe("export");
-  });
-
-  test("eval export with --output flag", () => {
-    const result = parseArgs(["eval", "export", "--output", "my/fixtures.jsonl"]);
-    expect(result.subcommand).toBe("eval");
-    expect(result.evalSubcommand).toBe("export");
-    expect(result.flags.output).toBe("my/fixtures.jsonl");
-  });
-
-  test("eval without subcommand", () => {
-    const result = parseArgs(["eval"]);
-    expect(result.subcommand).toBe("eval");
-    expect(result.evalSubcommand).toBeUndefined();
-  });
-
-  test("eval with unknown subcommand throws", () => {
-    expect(() => parseArgs(["eval", "foobar"])).toThrow("Unknown eval subcommand: foobar");
-  });
-
-  test("--output without value throws", () => {
-    expect(() => parseArgs(["eval", "export", "--output"])).toThrow("--output requires a file path");
-  });
-
   test("--feedback with text sets userFeedback and implies force", () => {
     const result = parseArgs(["analyze", "12345", "--feedback", "ignore the missing charger"]);
     expect(result.flags.feedbackProvided).toBe(true);

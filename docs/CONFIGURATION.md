@@ -82,19 +82,6 @@ Starts the Telegram bot in long-polling mode. Requires `TELEGRAM_BOT_TOKEN` and 
 
 Bot commands: `/active` (show open items with live sync), `/help`. Send a mac.bid URL or lot ID to analyze an item.
 
-### `mac-bid eval export`
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--output <path>` | Output file path (default: `evals/fixtures.jsonl`) | `mac-bid eval export --output data/fixtures.jsonl` |
-
-### `mac-bid eval run`
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--fixtures <path>` | Fixture file path (default: `evals/fixtures.jsonl`) | `mac-bid eval run --fixtures data/fixtures.jsonl` |
-| `--models <m1,m2>` | Comma-separated models (required) | `mac-bid eval run --models gemini/gemini-2.5-flash,openai/gpt-4o-mini` |
-
 ## Input Format Support
 
 The `analyze` command accepts these formats:
