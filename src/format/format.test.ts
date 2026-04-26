@@ -1,13 +1,13 @@
 import { describe, test, expect } from "bun:test";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "../shared/types";
 import {
   resolveDisplayData,
-  plainText,
-  telegramHtml,
   formatTimeRemaining,
   isEndingSoon,
   type ItemDisplayData,
-} from "./format";
+} from "./display";
+import { plainText } from "./text";
+import { telegramHtml } from "./html";
 
 function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
   return {

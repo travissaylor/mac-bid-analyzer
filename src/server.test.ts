@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll, mock } from "bun:test";
 import { openDatabase, upsertAnalyzedItem } from "./db";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import { Database } from "bun:sqlite";
 
 type AnalyzeCall = {

@@ -1,7 +1,7 @@
 import { Telegraf, Markup } from "telegraf";
 import { openDatabase, getItemByLotId } from "./db";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
-import type { AnalyzeResult } from "./analyze";
+import type { AnalyzeResult } from "./shared/types";
 import { loadConfig, validateTelegramEnv } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";

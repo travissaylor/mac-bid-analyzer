@@ -3,7 +3,7 @@ import { unlinkSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { openDatabase, upsertAnalyzedItem, getItemByLotId } from "./db";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import type { Database } from "bun:sqlite";
 import { syncLiveData } from "./sync";
 

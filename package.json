@@ -10,7 +10,7 @@
   },
   "private": true,
   "scripts": {
-    "start": "bun run src/cli.ts",
+    "start": "bun run src/main.ts",
     "typecheck": "bun x tsc --noEmit",
     "test": "bun test",
     "build:extension": "bun run build.ts"
