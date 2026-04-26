@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import { getOpenItems, updateLiveData } from "./db";
 
 function timestamp(): string {

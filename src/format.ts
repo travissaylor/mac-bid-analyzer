@@ -1,4 +1,4 @@
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import type { ImageFinding } from "./llm/image-prompt";
 
 export interface ItemRenderer<T = string> {

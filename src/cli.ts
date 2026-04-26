@@ -1,7 +1,6 @@
 import { openDatabase, getOpenItems, getAllItems, getDeals, getReviewItems, getItemByLotId } from "./db";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem, AnalyzeResult } from "./shared/types";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
-import type { AnalyzeResult } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";
 import { syncLiveData } from "./sync";

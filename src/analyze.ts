@@ -1,5 +1,5 @@
 import type { AppConfig } from "./config";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem, AnalyzeResult } from "./shared/types";
 import { openDatabase, getItemByLotId, upsertAnalyzedItem } from "./db";
 import { searchEbay } from "./ebay";
 import { loadBuildings, getLocationInfo } from "./location";
@@ -250,11 +250,6 @@ export function calculateMaxBid(
 export function calculateDealScore(recommendedMaxBid: number, currentBid: number): number {
   if (recommendedMaxBid <= 0) return 0;
   return ((recommendedMaxBid - currentBid) / recommendedMaxBid) * 100;
-}
-
-export interface AnalyzeResult {
-  item: AnalyzedItem;
-  skipped: boolean;
 }
 
 export async function analyzeItem(

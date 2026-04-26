@@ -4,7 +4,7 @@ import {
   getItemByAuctionAndLotNumber,
   getItemByLotNumber,
 } from "./db";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import { parseLotId, resolveLotId, analyzeItem } from "./analyze";
 import { loadConfig } from "./config";
 import { clearBuildingsCache } from "./location";

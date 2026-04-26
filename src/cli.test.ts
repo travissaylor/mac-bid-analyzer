@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { parseArgs, printAnalysisSummary } from "./cli";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 
 function makeItem(overrides: Partial<AnalyzedItem> = {}): AnalyzedItem {
   return {

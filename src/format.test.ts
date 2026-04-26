@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import type { AnalyzedItem } from "./db";
+import type { AnalyzedItem } from "./shared/types";
 import {
   resolveDisplayData,
   plainText,
