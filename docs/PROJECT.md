@@ -66,7 +66,7 @@ See [PRICING.md](./PRICING.md) for full details.
 ```
 mac-bid-analyzer/
 ├── src/
-│   ├── cli.ts                # CLI entrypoint with subcommands
+│   ├── main.ts               # CLI entrypoint (delegates to cli/ dispatcher)
 │   ├── analyze.ts            # Single item analysis logic
 │   ├── config.ts             # Config file loader + CLI flag merging
 │   ├── db.ts                 # SQLite schema and operations

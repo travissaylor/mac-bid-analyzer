@@ -31,13 +31,13 @@ Create `config.json` with your location and pricing settings. See [docs/CONFIGUR
 
 ```bash
 # Analyze a single item
-bun run src/cli.ts analyze <url or lot ID>
+bun run src/main.ts analyze <url or lot ID>
 
 # Query results
-bun run src/cli.ts results
+bun run src/main.ts results
 
 # Show full detail for an item
-bun run src/cli.ts detail <lotId>
+bun run src/main.ts detail <lotId>
 ```
 
 ## Deploying
